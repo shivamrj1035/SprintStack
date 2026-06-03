@@ -9,6 +9,7 @@ import {
   deleteTimesheet,
   getProjects,
   getCustomFormForProject,
+  checkProjectFormStatus,
 } from "@/server-fns/functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,43 +76,45 @@ function FormSkeletonLoader() {
       <div className="relative w-full max-w-[280px] h-32 flex items-center justify-center">
         {/* Animated glowing background */}
         <div className="absolute inset-0 bg-primary/5 blur-xl rounded-xl animate-pulse" />
-        
-        <svg 
-          className="w-full h-full text-muted-foreground/15" 
-          viewBox="0 0 300 120" 
-          fill="none" 
-          stroke="currentColor" 
+
+        <svg
+          className="w-full h-full text-muted-foreground/15"
+          viewBox="0 0 300 120"
+          fill="none"
+          stroke="currentColor"
           strokeWidth="1.5"
           strokeLinecap="round"
         >
           {/* Animated drawing strokes using CSS animation */}
           {/* Header path */}
-          <path 
-            d="M 10 10 L 290 10 L 290 25 L 10 25 Z" 
-            className="animate-draw-stroke stroke-primary/30" 
+          <path
+            d="M 10 10 L 290 10 L 290 25 L 10 25 Z"
+            className="animate-draw-stroke stroke-primary/30"
           />
           {/* Left field path */}
-          <path 
-            d="M 10 40 L 140 40 L 140 60 L 10 60 Z" 
-            className="animate-draw-stroke" 
+          <path
+            d="M 10 40 L 140 40 L 140 60 L 10 60 Z"
+            className="animate-draw-stroke"
             style={{ animationDelay: "0.2s" }}
           />
           {/* Right field path */}
-          <path 
-            d="M 160 40 L 290 40 L 290 60 L 160 60 Z" 
-            className="animate-draw-stroke" 
+          <path
+            d="M 160 40 L 290 40 L 290 60 L 160 60 Z"
+            className="animate-draw-stroke"
             style={{ animationDelay: "0.4s" }}
           />
           {/* Full area path */}
-          <path 
-            d="M 10 75 L 290 75 L 290 105 L 10 105 Z" 
-            className="animate-draw-stroke" 
+          <path
+            d="M 10 75 L 290 75 L 290 105 L 10 105 Z"
+            className="animate-draw-stroke"
             style={{ animationDelay: "0.6s" }}
           />
         </svg>
       </div>
       <div className="text-center space-y-1">
-        <span className="text-xs font-semibold text-foreground/85 animate-pulse">Loading Custom Form Template...</span>
+        <span className="text-xs font-semibold text-foreground/85 animate-pulse">
+          Loading Custom Form Template...
+        </span>
         <p className="text-[10px] text-muted-foreground">Mapping customized project layout</p>
       </div>
     </div>
@@ -154,7 +157,7 @@ function TimesheetsPage() {
   const byDay = days.map((d) => {
     const k = format(d, "yyyy-MM-dd");
     const entries = ((tsQ.data ?? []) as TimesheetDbEntry[]).filter(
-      (t) => t.date === k && t.organization_id === activeOrgId
+      (t) => t.date === k && t.organization_id === activeOrgId,
     );
     const total = entries.reduce((s, t) => s + Number(t.hours), 0);
     return { date: d, key: k, entries, total };
@@ -178,7 +181,15 @@ function TimesheetsPage() {
     queryFn: () => getCustomFormForProject({ data: { project_id: projectId } }),
     enabled: projectId !== "none" && projectId !== "",
   });
-  const customFields = ((customFormQ.data as any)?.fields as CustomField[]) ?? [];
+  const customFields =
+    (customFormQ.data as { fields?: CustomField[] } | null | undefined)?.fields ?? [];
+
+  const formStatusQ = useQuery({
+    queryKey: ["project-form-status", projectId],
+    queryFn: () => checkProjectFormStatus({ data: { project_id: projectId } }),
+    enabled: projectId !== "none" && projectId !== "",
+  });
+  const hasPublishedForm = projectId === "none" || (formStatusQ.data?.hasPublishedForm ?? true);
 
   const filteredTasks = useMemo(() => {
     const list = tasksQ.data ?? [];
@@ -256,7 +267,12 @@ function TimesheetsPage() {
       // Find notes/description/remarks field
       const notesField = customFields.find((f) => {
         const label = f.label.toLowerCase();
-        return label.includes("remark") || label.includes("note") || label.includes("description") || label.includes("comment");
+        return (
+          label.includes("remark") ||
+          label.includes("note") ||
+          label.includes("description") ||
+          label.includes("comment")
+        );
       });
       if (notesField) {
         const fieldKey = notesField.id || notesField.label;
@@ -378,15 +394,17 @@ function TimesheetsPage() {
                 <Plus className="mr-1 h-3 w-3" /> Log time
               </Button>
             </DialogTrigger>
-            <DialogContent className={`max-h-[90vh] overflow-y-auto ${step === 2 && (customFormQ.isLoading || customFields.length > 0) ? "max-w-2xl" : "max-w-md"}`}>
+            <DialogContent
+              className={`max-h-[90vh] overflow-y-auto ${step === 2 && (customFormQ.isLoading || customFields.length > 0) ? "max-w-2xl" : "max-w-md"}`}
+            >
               <DialogHeader>
                 <DialogTitle className="text-sm font-semibold">
-                  {step === 1 
-                    ? "Log Time: Select Workspace / Project" 
-                    : `Log Time: ${projectId === "none" ? "Personal Use" : (projectsQ.data?.find(p => p.id === projectId)?.name || "Project")}`}
+                  {step === 1
+                    ? "Log Time: Select Workspace / Project"
+                    : `Log Time: ${projectId === "none" ? "Personal Use" : projectsQ.data?.find((p) => p.id === projectId)?.name || "Project"}`}
                 </DialogTitle>
               </DialogHeader>
-              
+
               {step === 1 ? (
                 <div className="space-y-4 py-2">
                   <div className="space-y-1.5">
@@ -411,12 +429,21 @@ function TimesheetsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
+                  {!hasPublishedForm && projectId && projectId !== "none" && (
+                    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                      <strong className="font-semibold">No Published Form Template.</strong>
+                      <br />
+                      This project requires a published form template before you can log time.
+                      Contact your admin.
+                    </div>
+                  )}
+
                   <DialogFooter className="pt-2">
                     <Button
                       type="button"
                       size="sm"
-                      disabled={!projectId}
+                      disabled={!projectId || (!hasPublishedForm && projectId !== "none")}
                       onClick={() => setStep(2)}
                       className="w-full sm:w-auto text-xs"
                     >
@@ -428,7 +455,12 @@ function TimesheetsPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center bg-muted/40 p-2 rounded border border-border/60">
                     <div className="text-[11px] text-muted-foreground">
-                      Logging to: <span className="font-semibold text-foreground">{projectId === "none" ? "Personal Workspace" : (projectsQ.data?.find(p => p.id === projectId)?.name || "Project")}</span>
+                      Logging to:{" "}
+                      <span className="font-semibold text-foreground">
+                        {projectId === "none"
+                          ? "Personal Workspace"
+                          : projectsQ.data?.find((p) => p.id === projectId)?.name || "Project"}
+                      </span>
                     </div>
                     <Button
                       type="button"
@@ -440,8 +472,11 @@ function TimesheetsPage() {
                       Change
                     </Button>
                   </div>
-                  
-                  {!(projectId !== "none" && (customFormQ.isLoading || customFields.length > 0)) && (
+
+                  {!(
+                    projectId !== "none" &&
+                    (customFormQ.isLoading || customFields.length > 0)
+                  ) && (
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -485,9 +520,7 @@ function TimesheetsPage() {
                     </>
                   )}
 
-                  {projectId !== "none" && customFormQ.isLoading && (
-                    <FormSkeletonLoader />
-                  )}
+                  {projectId !== "none" && customFormQ.isLoading && <FormSkeletonLoader />}
 
                   {projectId !== "none" && customFields.length > 0 && (
                     <div className="border-t border-border pt-3 mt-3 space-y-3">
@@ -498,16 +531,20 @@ function TimesheetsPage() {
                         {customFields.map((field) => {
                           const fieldKey = field.id || field.label;
                           const val = customValues[fieldKey] ?? "";
-                          const widthClass = {
-                            "100": "w-full",
-                            "50": "w-[calc(50%-6px)]",
-                            "33": "w-[calc(33.33%-8px)]",
-                            "25": "w-[calc(25%-9px)]",
-                          }[field.width || "100"] || "w-full";
+                          const widthClass =
+                            {
+                              "100": "w-full",
+                              "50": "w-[calc(50%-6px)]",
+                              "33": "w-[calc(33.33%-8px)]",
+                              "25": "w-[calc(25%-9px)]",
+                            }[field.width || "100"] || "w-full";
 
                           if (field.type === "section_header") {
                             return (
-                              <div key={fieldKey} className="w-full border-b border-border/60 pb-1 mt-2 mb-1">
+                              <div
+                                key={fieldKey}
+                                className="w-full border-b border-border/60 pb-1 mt-2 mb-1"
+                              >
                                 <span className="text-xs font-bold text-primary uppercase tracking-wide font-sans">
                                   {field.label}
                                 </span>
@@ -529,7 +566,9 @@ function TimesheetsPage() {
                                   }
                                 >
                                   <SelectTrigger className="mt-1 h-8 text-xs bg-background">
-                                    <SelectValue placeholder={field.placeholder || "Select option"} />
+                                    <SelectValue
+                                      placeholder={field.placeholder || "Select option"}
+                                    />
                                   </SelectTrigger>
                                   <SelectContent className="bg-background border-border">
                                     {(field.options || []).map((opt) => (
@@ -581,7 +620,10 @@ function TimesheetsPage() {
                                 <Textarea
                                   value={String(val)}
                                   onChange={(e) =>
-                                    setCustomValues((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+                                    setCustomValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
                                   }
                                   placeholder={field.placeholder || "Enter details..."}
                                   rows={2}
@@ -594,7 +636,8 @@ function TimesheetsPage() {
                                   onChange={(e) =>
                                     setCustomValues((prev) => ({
                                       ...prev,
-                                      [fieldKey]: e.target.value === "" ? "" : Number(e.target.value),
+                                      [fieldKey]:
+                                        e.target.value === "" ? "" : Number(e.target.value),
                                     }))
                                   }
                                   placeholder={field.placeholder || "0"}
@@ -605,7 +648,10 @@ function TimesheetsPage() {
                                   type="date"
                                   value={String(val)}
                                   onChange={(e) =>
-                                    setCustomValues((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+                                    setCustomValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
                                   }
                                   className="mt-1 h-8 text-xs"
                                 />
@@ -614,7 +660,10 @@ function TimesheetsPage() {
                                   type="time"
                                   value={String(val)}
                                   onChange={(e) =>
-                                    setCustomValues((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+                                    setCustomValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
                                   }
                                   className="mt-1 h-8 text-xs"
                                 />
@@ -623,7 +672,10 @@ function TimesheetsPage() {
                                   type="datetime-local"
                                   value={String(val)}
                                   onChange={(e) =>
-                                    setCustomValues((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+                                    setCustomValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
                                   }
                                   className="mt-1 h-8 text-xs"
                                 />
@@ -672,7 +724,9 @@ function TimesheetsPage() {
                                           toast.success("Geolocation acquired!");
                                         },
                                         (err) => {
-                                          toast.error("Failed to acquire geolocation: " + err.message);
+                                          toast.error(
+                                            "Failed to acquire geolocation: " + err.message,
+                                          );
                                         },
                                       );
                                     }}
@@ -686,7 +740,10 @@ function TimesheetsPage() {
                                   type="text"
                                   value={String(val)}
                                   onChange={(e) =>
-                                    setCustomValues((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+                                    setCustomValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
                                   }
                                   placeholder={
                                     field.placeholder || `Enter ${field.label.toLowerCase()}...`
@@ -701,7 +758,10 @@ function TimesheetsPage() {
                     </div>
                   )}
 
-                  {!(projectId !== "none" && (customFormQ.isLoading || customFields.length > 0)) && (
+                  {!(
+                    projectId !== "none" &&
+                    (customFormQ.isLoading || customFields.length > 0)
+                  ) && (
                     <>
                       <div>
                         <Label className="text-xs">Notes</Label>
@@ -723,7 +783,12 @@ function TimesheetsPage() {
                   )}
 
                   <DialogFooter className="pt-2">
-                    <Button size="sm" onClick={log} disabled={logging || customFormQ.isLoading} className="w-full sm:w-auto">
+                    <Button
+                      size="sm"
+                      onClick={log}
+                      disabled={logging || customFormQ.isLoading}
+                      className="w-full sm:w-auto"
+                    >
                       {logging && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
                       {logging ? "Logging..." : "Log Time"}
                     </Button>

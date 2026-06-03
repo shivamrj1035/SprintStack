@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "skills": {
+    "neon-postgres": {
+      "source": "omer-metin/skills-for-antigravity",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/omer-metin/skills-for-antigravity.git",
+      "skillFolderHash": "",
+      "installedAt": "2026-06-03T09:45:00.352Z",
+      "updatedAt": "2026-06-03T09:45:00.352Z"
+    }
+  },
+  "dismissed": {}
+}

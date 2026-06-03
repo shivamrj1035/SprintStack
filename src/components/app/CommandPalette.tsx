@@ -8,7 +8,16 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, ListChecks, FolderKanban, Timer, Plus, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  ListChecks,
+  FolderKanban,
+  Timer,
+  Plus,
+  LogOut,
+  StickyNote,
+  Link2,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 export function CommandPalette({
@@ -43,6 +52,12 @@ export function CommandPalette({
           <CommandItem onSelect={() => go("/timesheets")}>
             <Timer className="mr-2 h-4 w-4" /> Timesheets
           </CommandItem>
+          <CommandItem onSelect={() => go("/todos")}>
+            <StickyNote className="mr-2 h-4 w-4" /> To-dos
+          </CommandItem>
+          <CommandItem onSelect={() => go("/links")}>
+            <Link2 className="mr-2 h-4 w-4" /> Links & Docs
+          </CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Actions">
@@ -54,6 +69,9 @@ export function CommandPalette({
           </CommandItem>
           <CommandItem onSelect={() => go("/timesheets?new=1")}>
             <Plus className="mr-2 h-4 w-4" /> Log time
+          </CommandItem>
+          <CommandItem onSelect={() => go("/links?new=1")}>
+            <Plus className="mr-2 h-4 w-4" /> New link
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />

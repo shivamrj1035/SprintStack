@@ -2,7 +2,7 @@
 
 ## Overview
 
-OrbitOS is a Jira-style developer work management platform with two workspace modes:
+Sprint Stack is a Jira-style developer work management platform with two workspace modes:
 
 - **Organization workspace** for teams, companies, and managed projects.
 - **Personal workspace** for individual developers managing their own tasks and projects.

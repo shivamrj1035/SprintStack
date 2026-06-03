@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { AppShell } from "@/components/app/AppShell";
-import { Loader2 } from "lucide-react";
+import { Loading } from "@/components/ui/loading";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthLayout,
@@ -17,11 +17,7 @@ function AuthLayout() {
   }, [loading, session, navigate]);
 
   if (loading || !session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading variant="fullscreen" message="Authenticating session..." />;
   }
   return (
     <AppShell>

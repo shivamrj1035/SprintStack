@@ -38,7 +38,7 @@ export async function getCurrentActor(): Promise<CurrentActor> {
   let avatarUrl: string | null = null;
 
   if (!email) {
-    const client = clerkClient();
+    const client = clerkClient({});
     const user = await client.users.getUser(auth.userId);
     email = user.primaryEmailAddress?.emailAddress ?? null;
     name = user.fullName;
@@ -68,6 +68,15 @@ export async function getCurrentActor(): Promise<CurrentActor> {
           eq(organizationMemberships.user_id, `pending:${email.toLowerCase()}`),
         ),
       );
+  }
+
+  // Check if user is blocked
+  const dbProfile = await db.query.profiles.findFirst({
+    where: eq(profiles.id, auth.userId),
+  });
+
+  if (dbProfile?.blocked) {
+    throw new Error("Your account has been blocked by the administrator.");
   }
 
   return {

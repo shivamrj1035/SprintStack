@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useWorkspace } from "@/hooks/use-workspace";
 import {
   createPersonalTodo,
   deletePersonalTodo,
@@ -39,6 +40,7 @@ type TodoPriority = "low" | "normal" | "high";
 
 function TodosPage() {
   const qc = useQueryClient();
+  const { activeOrgId } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -50,9 +52,18 @@ function TodosPage() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   const todosQ = useQuery({
-    queryKey: ["personal-todos"],
-    queryFn: () => getPersonalTodos(),
+    queryKey: ["personal-todos", activeOrgId],
+    queryFn: () => getPersonalTodos({ data: { organizationId: activeOrgId! } }),
+    enabled: !!activeOrgId,
   });
+
+  if (!activeOrgId) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const todos = (todosQ.data ?? []).filter((todo) =>
     filter === "all" ? true : todo.status === filter,
@@ -67,6 +78,7 @@ function TodosPage() {
     try {
       await createPersonalTodo({
         data: {
+          organizationId: activeOrgId!,
           title: title.trim(),
           notes: notes.trim() || null,
           priority,
@@ -79,7 +91,7 @@ function TodosPage() {
       setPriority("normal");
       setPinned(false);
       setOpen(false);
-      qc.invalidateQueries({ queryKey: ["personal-todos"] });
+      qc.invalidateQueries({ queryKey: ["personal-todos", activeOrgId] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add to-do");
     } finally {
@@ -94,7 +106,7 @@ function TodosPage() {
     setUpdatingIds((current) => new Set(current).add(id));
     try {
       await updatePersonalTodo({ data: { id, patch } });
-      qc.invalidateQueries({ queryKey: ["personal-todos"] });
+      qc.invalidateQueries({ queryKey: ["personal-todos", activeOrgId] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update to-do");
     } finally {
@@ -111,7 +123,7 @@ function TodosPage() {
     setDeletingIds((current) => new Set(current).add(id));
     try {
       await deletePersonalTodo({ data: id });
-      qc.invalidateQueries({ queryKey: ["personal-todos"] });
+      qc.invalidateQueries({ queryKey: ["personal-todos", activeOrgId] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete to-do");
     } finally {

@@ -116,7 +116,7 @@ function FormBuilderPage() {
     enabled: !!templateId,
   });
 
-  const dbTemplate = templateQ.data as any;
+  const dbTemplate = templateQ.data as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Client side edit states
   const [fields, setFields] = useState<FormField[]>([]);

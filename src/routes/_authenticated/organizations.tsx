@@ -9,11 +9,9 @@ import {
   updateOrganizationMemberRole,
   updateOrganizationSettings,
   getProjects,
-  getCustomTimesheetForms,
-  saveCustomTimesheetForm,
-  deleteCustomTimesheetForm,
 } from "@/server-fns/functions";
 import { useAuth } from "@/hooks/use-auth";
+import { useWorkspace } from "@/hooks/use-workspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +49,7 @@ export const Route = createFileRoute("/_authenticated/organizations")({
 });
 
 const MODULES = ["projects", "tasks", "timesheets", "dashboard", "personal_workspace"];
-const MEMBER_ROLES = ["admin", "manager", "member"] as const;
+const MEMBER_ROLES = ["admin", "member"] as const;
 
 function slugify(value: string) {
   return value
@@ -63,6 +61,7 @@ function slugify(value: string) {
 
 function OrganizationsPage() {
   const { isSuperAdmin } = useAuth();
+  const { activeOrg } = useWorkspace();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -77,11 +76,6 @@ function OrganizationsPage() {
     "timesheets",
     "dashboard",
   ]);
-
-  const workspaceQ = useQuery({
-    queryKey: ["workspace-context"],
-    queryFn: () => getWorkspaceContext(),
-  });
 
   async function submit() {
     if (!name.trim()) {
@@ -114,18 +108,13 @@ function OrganizationsPage() {
     }
   }
 
-  const organizations = (workspaceQ.data?.organizations ?? []).filter(
-    (org) => org.kind === "organization",
-  );
-  const manageableOrganizations = organizations.filter((org) => org.can_manage);
-
   return (
     <div className="space-y-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Organizations</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Organization Settings</h1>
           <p className="text-xs text-muted-foreground">
-            Manage organization branding, members, and role-based access.
+            Manage your active organization's branding, members, and role-based access.
           </p>
         </div>
         {isSuperAdmin && (
@@ -168,16 +157,16 @@ function OrganizationsPage() {
         )}
       </div>
 
-      {manageableOrganizations.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-sm text-muted-foreground">
-          You do not manage any organization yet.
+      {!activeOrg || activeOrg.kind === "personal" ? (
+        <div className="rounded-lg border border-border bg-surface p-8 text-sm text-muted-foreground text-center">
+          Please select an organization workspace from the sidebar to manage its settings.
+        </div>
+      ) : !activeOrg.can_manage ? (
+        <div className="rounded-lg border border-border bg-surface p-8 text-sm text-muted-foreground text-center">
+          You do not have permission to manage this organization's settings.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {manageableOrganizations.map((org) => (
-            <OrganizationCard key={org.id} organization={org} />
-          ))}
-        </div>
+        <OrganizationCard organization={activeOrg} />
       )}
     </div>
   );
@@ -286,9 +275,7 @@ function OrganizationCard({
   organization: Awaited<ReturnType<typeof getWorkspaceContext>>["organizations"][number];
 }) {
   const qc = useQueryClient();
-  const { isSuperAdmin } = useAuth();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [formsOpen, setFormsOpen] = useState(false);
+  const { isSuperAdmin, profile } = useAuth();
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -354,7 +341,6 @@ function OrganizationCard({
         },
       });
       toast.success("Organization updated");
-      setSettingsOpen(false);
       qc.invalidateQueries({ queryKey: ["workspace-context"] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update organization");
@@ -412,58 +398,6 @@ function OrganizationCard({
                 </span>
               ))}
             </div>
-          </div>
-          <div className="flex gap-2">
-            {(organization.current_user_role === "admin" ||
-              organization.current_user_role === "super_admin" ||
-              isSuperAdmin) && (
-              <Dialog open={formsOpen} onOpenChange={setFormsOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                    <FileText className="h-3 w-3" /> Custom Forms
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="text-sm font-semibold">
-                      Customized Timesheet Forms - {organization.name}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <CustomTimesheetFormsBuilder organizationId={organization.id} />
-                </DialogContent>
-              </Dialog>
-            )}
-
-            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-7 text-xs">
-                  Settings
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="text-sm">Organization settings</DialogTitle>
-                </DialogHeader>
-                <OrganizationFields
-                  name={name}
-                  setName={setName}
-                  slug={slug}
-                  setSlug={setSlug}
-                  logoUrl={logoUrl}
-                  setLogoUrl={setLogoUrl}
-                  themeColor={themeColor}
-                  setThemeColor={setThemeColor}
-                  modules={modules}
-                  setModules={setModules}
-                />
-                <DialogFooter>
-                  <Button size="sm" onClick={saveSettings} disabled={savingSettings}>
-                    {savingSettings && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {savingSettings ? "Saving..." : "Save"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
       </div>
@@ -538,6 +472,9 @@ function OrganizationCard({
               {(membersQ.data ?? []).map((member) => {
                 const pending = member.user_id.startsWith("pending:");
                 const changingRole = changingRoleId === member.id;
+                const isSelf =
+                  profile?.email &&
+                  (member.email === profile.email || member.profile_email === profile.email);
                 return (
                   <tr key={member.id} className="border-t border-border">
                     <td className="px-3 py-2">
@@ -557,7 +494,7 @@ function OrganizationCard({
                       ) : (
                         <Select
                           value={member.role}
-                          disabled={changingRole}
+                          disabled={changingRole || Boolean(isSelf)}
                           onValueChange={(value) =>
                             changeRole(member.id, value as (typeof MEMBER_ROLES)[number])
                           }
@@ -593,368 +530,30 @@ function OrganizationCard({
           </table>
         </div>
       </div>
-    </div>
-  );
-}
 
-interface CustomField {
-  id: string;
-  label: string;
-  type: "text" | "date" | "select" | "number";
-  required: boolean;
-  options?: string[];
-}
-
-function CustomTimesheetFormsBuilder({ organizationId }: { organizationId: string }) {
-  const qc = useQueryClient();
-  const [editingFormId, setEditingFormId] = useState<string | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [fields, setFields] = useState<CustomField[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const formsQ = useQuery({
-    queryKey: ["custom-timesheet-forms", organizationId],
-    queryFn: () => getCustomTimesheetForms({ data: { organization_id: organizationId } }),
-  });
-
-  const projectsQ = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => getProjects(),
-  });
-
-  const orgProjects = (projectsQ.data ?? []).filter((p) => p.organization_id === organizationId);
-
-  const forms = formsQ.data ?? [];
-
-  function startNew() {
-    // Find first project that doesn't have a custom form yet
-    const unusedProject = orgProjects.find(
-      (p) => !forms.some((f: { project_id: string }) => f.project_id === p.id),
-    );
-    setSelectedProjectId(unusedProject?.id ?? "");
-    setFields([]);
-    setEditingFormId(null);
-    setIsEditing(true);
-  }
-
-  function startEdit(form: {
-    id: string;
-    organization_id: string;
-    project_id: string;
-    fields: CustomField[];
-    created_at: Date;
-    updated_at: Date;
-  }) {
-    setSelectedProjectId(form.project_id);
-    setFields(form.fields);
-    setEditingFormId(form.id);
-    setIsEditing(true);
-  }
-
-  async function handleDelete(formId: string) {
-    if (!confirm("Are you sure you want to delete this custom timesheet form?")) return;
-    try {
-      await deleteCustomTimesheetForm({
-        data: { organization_id: organizationId, form_id: formId },
-      });
-      toast.success("Custom form deleted");
-      formsQ.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete form");
-    }
-  }
-
-  function addField() {
-    const newField: CustomField = {
-      id: crypto.randomUUID(),
-      label: "",
-      type: "text",
-      required: false,
-      options: [],
-    };
-    setFields([...fields, newField]);
-  }
-
-  function removeField(index: number) {
-    setFields(fields.filter((_, i) => i !== index));
-  }
-
-  function updateField<K extends keyof CustomField>(index: number, key: K, value: CustomField[K]) {
-    const next = [...fields];
-    next[index] = { ...next[index], [key]: value };
-    setFields(next);
-  }
-
-  function addOption(fieldIndex: number) {
-    const field = fields[fieldIndex];
-    const options = field.options ? [...field.options, ""] : [""];
-    updateField(fieldIndex, "options", options);
-  }
-
-  function removeOption(fieldIndex: number, optionIndex: number) {
-    const field = fields[fieldIndex];
-    const options = field.options?.filter((_, i) => i !== optionIndex) ?? [];
-    updateField(fieldIndex, "options", options);
-  }
-
-  function updateOption(fieldIndex: number, optionIndex: number, value: string) {
-    const field = fields[fieldIndex];
-    const options = field.options ? [...field.options] : [];
-    options[optionIndex] = value;
-    updateField(fieldIndex, "options", options);
-  }
-
-  async function handleSave() {
-    if (!selectedProjectId) {
-      toast.error("Please select a project");
-      return;
-    }
-    if (fields.length === 0) {
-      toast.error("Please add at least one field");
-      return;
-    }
-    for (const f of fields) {
-      if (!f.label.trim()) {
-        toast.error("All field labels are required");
-        return;
-      }
-      if (f.type === "select" && (!f.options || f.options.some((o) => !o.trim()))) {
-        toast.error("All dropdown options must have non-empty values");
-        return;
-      }
-    }
-
-    setSaving(true);
-    try {
-      await saveCustomTimesheetForm({
-        data: {
-          organization_id: organizationId,
-          project_id: selectedProjectId,
-          fields,
-        },
-      });
-      toast.success(editingFormId ? "Form updated" : "Form created");
-      setIsEditing(false);
-      formsQ.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save form");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (isEditing) {
-    return (
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setIsEditing(false)}
-          >
-            <ArrowLeft className="h-4 w-4" />
+      <div className="border-t border-border p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold">Settings</h3>
+          <Button size="sm" onClick={saveSettings} disabled={savingSettings}>
+            {savingSettings && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+            {savingSettings ? "Saving..." : "Save Changes"}
           </Button>
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {editingFormId ? "Edit Form Template" : "New Form Template"}
-          </span>
         </div>
-
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs">Link to Project</Label>
-            <Select
-              value={selectedProjectId}
-              onValueChange={setSelectedProjectId}
-              disabled={!!editingFormId}
-            >
-              <SelectTrigger className="mt-1 h-8 text-xs">
-                <SelectValue placeholder="Select a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {orgProjects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-3">
-            <Label className="text-xs">Custom Fields</Label>
-            {fields.length === 0 ? (
-              <div className="text-xs text-muted-foreground py-2 italic">
-                No fields added yet. Add fields to capture specific time-tracking data.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {fields.map((field, fIdx) => (
-                  <div
-                    key={field.id}
-                    className="rounded-md border border-border p-3 space-y-2 bg-surface/50"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <Input
-                          placeholder="Field Label (e.g. Work Location, Mileage)"
-                          value={field.label}
-                          onChange={(e) => updateField(fIdx, "label", e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="w-28">
-                        <Select
-                          value={field.type}
-                          onValueChange={(val) =>
-                            updateField(fIdx, "type", val as CustomField["type"])
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="text">Text</SelectItem>
-                            <SelectItem value="number">Number</SelectItem>
-                            <SelectItem value="date">Date</SelectItem>
-                            <SelectItem value="select">Dropdown</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                        <Checkbox
-                          checked={field.required}
-                          onCheckedChange={(checked) => updateField(fIdx, "required", !!checked)}
-                        />
-                        Required
-                      </label>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeField(fIdx)}
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    {field.type === "select" && (
-                      <div className="pl-4 border-l border-border space-y-1.5">
-                        <div className="text-[10px] font-medium text-muted-foreground">
-                          Dropdown Options
-                        </div>
-                        {(field.options || []).map((option, oIdx) => (
-                          <div key={oIdx} className="flex items-center gap-2">
-                            <Input
-                              placeholder={`Option ${oIdx + 1}`}
-                              value={option}
-                              onChange={(e) => updateOption(fIdx, oIdx, e.target.value)}
-                              className="h-7 text-xs max-w-xs"
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeOption(fIdx, oIdx)}
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[10px] px-2 mt-1"
-                          onClick={() => addOption(fIdx)}
-                        >
-                          Add Option
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <Button variant="outline" size="sm" onClick={addField} className="h-8 text-xs">
-              <Plus className="mr-1 h-3.5 w-3.5" /> Add custom field
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Template"}
-          </Button>
+        <div className="max-w-2xl">
+          <OrganizationFields
+            name={name}
+            setName={setName}
+            slug={slug}
+            setSlug={setSlug}
+            logoUrl={logoUrl}
+            setLogoUrl={setLogoUrl}
+            themeColor={themeColor}
+            setThemeColor={setThemeColor}
+            modules={modules}
+            setModules={setModules}
+          />
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Configured Templates
-        </span>
-        <Button size="sm" className="h-7 text-xs" onClick={startNew}>
-          <Plus className="mr-1 h-3 w-3" /> New custom form
-        </Button>
-      </div>
-
-      {formsQ.isLoading ? (
-        <div className="flex justify-center p-6">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      ) : forms.length === 0 ? (
-        <div className="rounded-md border border-border/60 bg-surface/50 p-6 text-center text-xs text-muted-foreground">
-          No custom timesheet forms defined yet for this organization. Add tailored fields to
-          capture project-specific data.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {forms.map((form) => {
-            const project = orgProjects.find((p) => p.id === form.project_id);
-            return (
-              <div
-                key={form.id}
-                className="flex items-center justify-between rounded-md border border-border p-3 bg-surface/50"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-foreground">
-                    {project?.name ?? "Unknown Project"}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {(form.fields as CustomField[]).map((f) => `${f.label} (${f.type})`).join(", ")}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => startEdit(form)}
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(form.id)}
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

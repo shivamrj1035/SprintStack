@@ -1,0 +1,24 @@
+[
+  {
+    "id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "name": "SprintStack HQ",
+    "slug": "sprintstack-hq",
+    "kind": "organization",
+    "theme_color": "#2563EB",
+    "logo_url": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=50&q=80",
+    "modules_enabled": ["projects", "tasks", "timesheets", "dashboard"],
+    "created_by": "user_admin_123",
+    "created_at": "2026-01-15T08:35:00Z"
+  },
+  {
+    "id": "0d20d43a-7d12-4fe2-9214-41d3d63b2ad9",
+    "name": "Shivam's Lab",
+    "slug": "shivams-lab",
+    "kind": "personal",
+    "theme_color": "#10B981",
+    "logo_url": null,
+    "modules_enabled": ["projects", "tasks", "timesheets"],
+    "created_by": "user_admin_123",
+    "created_at": "2026-01-15T08:40:00Z"
+  }
+]

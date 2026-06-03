@@ -1,0 +1,38 @@
+[
+  {
+    "id": "e81d7fcf-9d41-477a-9a99-b1d5df8bc57e",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "project_id": "88adfa6e-21fe-407d-a111-8beee2dbff15",
+    "task_id": "c3fa98e3-500b-4b2a-bf3d-24959db62c2f",
+    "user_id": "user_dev_789",
+    "date": "2026-06-03",
+    "hours": 6.5,
+    "billable": true,
+    "notes": "Completed initial transition state and page folding animation integrations.",
+    "created_at": "2026-06-03T12:00:00Z"
+  },
+  {
+    "id": "d04a6b2e-f432-4786-8d19-482a61deef11",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "project_id": "88adfa6e-21fe-407d-a111-8beee2dbff15",
+    "task_id": "f5cde21d-7212-4ee4-90aa-621213f5cde2",
+    "user_id": "user_pm_456",
+    "date": "2026-06-03",
+    "hours": 4.0,
+    "billable": false,
+    "notes": "Sprint planning, backlog specification creation, and scope definition review.",
+    "created_at": "2026-06-03T11:30:00Z"
+  },
+  {
+    "id": "1f8e29cf-a8e2-4bf1-b765-ca2b98ef929c",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "project_id": "88adfa6e-21fe-407d-a111-8beee2dbff15",
+    "task_id": "f3b49ee1-de20-4bf2-b6ab-129bdeee93cb",
+    "user_id": "user_dev_789",
+    "date": "2026-06-03",
+    "hours": 1.5,
+    "billable": true,
+    "notes": "Implemented /api/verify-access REST API server in server.js reading mock profiles and permissions models.",
+    "created_at": "2026-06-03T13:10:00Z"
+  }
+]

@@ -1,0 +1,57 @@
+[
+  {
+    "role": "super_admin",
+    "allowed_actions": [
+      "workspace:create",
+      "workspace:delete",
+      "workspace:edit_settings",
+      "project:create",
+      "project:edit",
+      "project:delete",
+      "task:create",
+      "task:edit",
+      "task:delete",
+      "timesheet:log_own",
+      "timesheet:log_others",
+      "timesheet:approve",
+      "member:invite",
+      "member:remove",
+      "member:change_role"
+    ]
+  },
+  {
+    "role": "admin",
+    "allowed_actions": [
+      "workspace:edit_settings",
+      "project:create",
+      "project:edit",
+      "project:delete",
+      "task:create",
+      "task:edit",
+      "task:delete",
+      "timesheet:log_own",
+      "timesheet:log_others",
+      "timesheet:approve",
+      "member:invite",
+      "member:remove",
+      "member:change_role"
+    ]
+  },
+  {
+    "role": "manager",
+    "allowed_actions": [
+      "project:create",
+      "project:edit",
+      "task:create",
+      "task:edit",
+      "task:delete",
+      "timesheet:log_own",
+      "timesheet:log_others",
+      "member:invite"
+    ]
+  },
+  {
+    "role": "member",
+    "allowed_actions": ["task:create", "task:edit", "timesheet:log_own"]
+  }
+]

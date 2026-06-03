@@ -4,6 +4,7 @@ import {
   customTimesheetForms,
   organizationMemberships,
   organizations,
+  personalLinks,
   personalTodos,
   profiles,
   projects,
@@ -21,7 +22,7 @@ import {
 } from "./workspace";
 
 const DEFAULT_MODULES = ["projects", "tasks", "timesheets", "dashboard"];
-const workspaceRoleSchema = z.enum(["admin", "manager", "member"]);
+const workspaceRoleSchema = z.enum(["admin", "member"]);
 
 export const getWorkspaceContext = createServerFn({ method: "GET" }).handler(async () => {
   const actor = await getCurrentActor();
@@ -54,7 +55,10 @@ export const getWorkspaceContext = createServerFn({ method: "GET" }).handler(asy
         ? ("super_admin" as const)
         : (membership?.role ?? ("member" as const)),
       can_manage:
-        actor.isSuperAdmin || membership?.role === "admin" || membership?.role === "super_admin",
+        actor.isSuperAdmin ||
+        membership?.role === "admin" ||
+        membership?.role === "super_admin" ||
+        membership?.role === "manager", // backward compat: treat legacy managers as admin
     };
   });
 
@@ -393,6 +397,34 @@ export const createTimesheet = createServerFn({ method: "POST" })
       organizationId = proj.organization_id;
     }
 
+    // ── Form template enforcement ──
+    // If the timesheet is for a project, verify a published form template exists
+    if (projectId) {
+      const publishedTemplate = await db.query.formTemplates.findFirst({
+        where: and(
+          eq(formTemplates.organization_id, organizationId),
+          eq(formTemplates.project_id, projectId),
+          eq(formTemplates.status, "published"),
+        ),
+      });
+
+      if (!publishedTemplate) {
+        // Also check legacy custom_timesheet_forms as fallback
+        const legacyForm = await db.query.customTimesheetForms.findFirst({
+          where: and(
+            eq(customTimesheetForms.organization_id, organizationId),
+            eq(customTimesheetForms.project_id, projectId),
+          ),
+        });
+
+        if (!legacyForm) {
+          throw new Error(
+            "This project's timesheet form is not published yet. Contact your admin to set up and publish a form template.",
+          );
+        }
+      }
+    }
+
     await db.insert(timesheets).values({
       organization_id: organizationId,
       user_id: actor.userId,
@@ -443,12 +475,22 @@ export const updateTask = createServerFn({ method: "POST" })
     const actor = await getCurrentActor();
     const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, data.id) });
     if (!existing?.organization_id) throw new Error("Task not found");
-    await requireWorkspaceRole(actor, existing.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-      "member",
-    ]);
+    // Members can update their own assigned task fields (status, progress, etc.)
+    // but only admin+ can change the assignee
+    if (data.patch.assignee_id !== undefined && data.patch.assignee_id !== existing.assignee_id) {
+      await requireWorkspaceRole(actor, existing.organization_id, [
+        "super_admin",
+        "admin",
+        "manager", // backward compat
+      ]);
+    } else {
+      await requireWorkspaceRole(actor, existing.organization_id, [
+        "super_admin",
+        "admin",
+        "manager",
+        "member",
+      ]);
+    }
 
     const patch: Record<string, unknown> = { ...data.patch, updated_at: new Date() };
     if (patch.estimated_hours !== undefined && patch.estimated_hours !== null) {
@@ -494,8 +536,7 @@ export const createTask = createServerFn({ method: "POST" })
     await requireWorkspaceRole(actor, organizationId, [
       "super_admin",
       "admin",
-      "manager",
-      "member",
+      "manager", // backward compat
     ]);
 
     const orgTasks = await db
@@ -536,16 +577,26 @@ export const deleteTask = createServerFn({ method: "POST" })
     await db.delete(tasks).where(eq(tasks.id, data));
   });
 
-export const getPersonalTodos = createServerFn({ method: "GET" }).handler(async () => {
-  const actor = await getCurrentActor();
-  return await db
-    .select()
-    .from(personalTodos)
-    .where(eq(personalTodos.user_id, actor.userId))
-    .orderBy(desc(personalTodos.pinned), desc(personalTodos.updated_at));
-});
+export const getPersonalTodos = createServerFn({ method: "GET" })
+  .inputValidator((data: { organizationId: string }) =>
+    z.object({ organizationId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    return await db
+      .select()
+      .from(personalTodos)
+      .where(
+        and(
+          eq(personalTodos.user_id, actor.userId),
+          eq(personalTodos.organization_id, data.organizationId),
+        ),
+      )
+      .orderBy(desc(personalTodos.pinned), desc(personalTodos.updated_at));
+  });
 
 const createPersonalTodoSchema = z.object({
+  organizationId: z.string().uuid(),
   title: z.string().min(1).max(200),
   notes: z.string().max(2000).nullable().optional(),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
@@ -560,6 +611,7 @@ export const createPersonalTodo = createServerFn({ method: "POST" })
     const actor = await getCurrentActor();
     await db.insert(personalTodos).values({
       user_id: actor.userId,
+      organization_id: data.organizationId,
       title: data.title,
       notes: data.notes,
       priority: data.priority,
@@ -738,7 +790,7 @@ export const getCustomFormForProject = createServerFn({ method: "GET" })
           placeholder?: string;
           width?: string;
         }[],
-        layout_settings: template.layout_settings as Record<string, unknown>,
+        layout_settings: template.layout_settings as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         isTemplate: true as const,
         name: template.name,
       };
@@ -822,7 +874,7 @@ export const getFormTemplates = createServerFn({ method: "GET" })
         placeholder?: string;
         width?: string;
       }[];
-      layout_settings: unknown;
+      layout_settings: any; // eslint-disable-line @typescript-eslint/no-explicit-any
       version: string;
       created_by: string;
       created_at: Date;
@@ -884,7 +936,7 @@ export const getFormTemplateById = createServerFn({ method: "GET" })
         placeholder?: string;
         width?: string;
       }[];
-      layout_settings: unknown;
+      layout_settings: any; // eslint-disable-line @typescript-eslint/no-explicit-any
       version: string;
       created_by: string;
       created_at: Date;
@@ -922,7 +974,7 @@ export const saveFormTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
-    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin", "manager"]);
 
     if (data.id) {
       const [updated] = await db
@@ -961,7 +1013,7 @@ export const saveFormTemplate = createServerFn({ method: "POST" })
           placeholder?: string;
           width?: string;
         }[],
-        layout_settings: updated.layout_settings as Record<string, unknown>,
+        layout_settings: updated.layout_settings as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         version: updated.version,
         created_by: updated.created_by,
         created_at: updated.created_at,
@@ -999,7 +1051,7 @@ export const saveFormTemplate = createServerFn({ method: "POST" })
           placeholder?: string;
           width?: string;
         }[],
-        layout_settings: created.layout_settings as Record<string, unknown>,
+        layout_settings: created.layout_settings as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         version: created.version,
         created_by: created.created_by,
         created_at: created.created_at,
@@ -1019,7 +1071,7 @@ export const deleteFormTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
-    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin", "manager"]);
 
     await db
       .delete(formTemplates)
@@ -1029,4 +1081,284 @@ export const deleteFormTemplate = createServerFn({ method: "POST" })
           eq(formTemplates.organization_id, data.organization_id),
         ),
       );
+  });
+
+// ═══════════════════════════════════════════════════════════════════
+// Personal Links — CRUD for user-curated link bookmarks
+// ═══════════════════════════════════════════════════════════════════
+
+const linkCategorySchema = z.enum([
+  "doc",
+  "sheet",
+  "slide",
+  "folder",
+  "image",
+  "video",
+  "file",
+  "excel",
+  "link",
+  "other",
+]);
+
+export const getPersonalLinks = createServerFn({ method: "GET" })
+  .inputValidator((data: { organizationId: string }) =>
+    z.object({ organizationId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    return await db
+      .select()
+      .from(personalLinks)
+      .where(
+        and(
+          eq(personalLinks.user_id, actor.userId),
+          eq(personalLinks.organization_id, data.organizationId),
+        ),
+      )
+      .orderBy(desc(personalLinks.pinned), desc(personalLinks.updated_at));
+  });
+
+const createPersonalLinkSchema = z.object({
+  organizationId: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  url: z.string().url(),
+  category: linkCategorySchema,
+  description: z.string().max(500).nullable().optional(),
+  pinned: z.boolean().default(false),
+});
+
+export const createPersonalLink = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof createPersonalLinkSchema>) =>
+    createPersonalLinkSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    await db.insert(personalLinks).values({
+      user_id: actor.userId,
+      organization_id: data.organizationId,
+      name: data.name,
+      url: data.url,
+      category: data.category,
+      description: data.description,
+      pinned: data.pinned,
+    });
+  });
+
+const updatePersonalLinkSchema = z.object({
+  id: z.string().uuid(),
+  patch: z.object({
+    name: z.string().min(1).max(200).optional(),
+    url: z.string().url().optional(),
+    category: linkCategorySchema.optional(),
+    description: z.string().max(500).nullable().optional(),
+    pinned: z.boolean().optional(),
+  }),
+});
+
+export const updatePersonalLink = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updatePersonalLinkSchema>) =>
+    updatePersonalLinkSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    await db
+      .update(personalLinks)
+      .set({ ...data.patch, updated_at: new Date() })
+      .where(and(eq(personalLinks.id, data.id), eq(personalLinks.user_id, actor.userId)));
+  });
+
+export const deletePersonalLink = createServerFn({ method: "POST" })
+  .inputValidator((data: string) => z.string().uuid().parse(data))
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    await db
+      .delete(personalLinks)
+      .where(and(eq(personalLinks.id, data), eq(personalLinks.user_id, actor.userId)));
+  });
+
+// ═══════════════════════════════════════════════════════════════════
+// Project form status check — used by timesheet UI to show warnings
+// ═══════════════════════════════════════════════════════════════════
+
+export const checkProjectFormStatus = createServerFn({ method: "GET" })
+  .inputValidator((data: { project_id: string }) =>
+    z.object({ project_id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, data.project_id),
+    });
+    if (!project?.organization_id) return { hasPublishedForm: false };
+
+    await requireWorkspaceRole(actor, project.organization_id, [
+      "super_admin",
+      "admin",
+      "manager",
+      "member",
+    ]);
+
+    // Check for published form template
+    const template = await db.query.formTemplates.findFirst({
+      where: and(
+        eq(formTemplates.organization_id, project.organization_id),
+        eq(formTemplates.project_id, data.project_id),
+        eq(formTemplates.status, "published"),
+      ),
+    });
+
+    if (template) return { hasPublishedForm: true };
+
+    // Fallback: check legacy custom timesheet form
+    const legacyForm = await db.query.customTimesheetForms.findFirst({
+      where: and(
+        eq(customTimesheetForms.organization_id, project.organization_id),
+        eq(customTimesheetForms.project_id, data.project_id),
+      ),
+    });
+
+    return { hasPublishedForm: !!legacyForm };
+  });
+
+// ═══════════════════════════════════════════════════════════════════
+// Super Admin Panel Functions
+// ═══════════════════════════════════════════════════════════════════
+
+export const getSuperAdminContext = createServerFn({ method: "GET" }).handler(async () => {
+  const actor = await getCurrentActor();
+  if (!actor.isSuperAdmin) {
+    throw new Error("Forbidden: Super Admin only.");
+  }
+
+  const orgs = await db.select().from(organizations).orderBy(organizations.name);
+  const usersList = await db.select().from(profiles).orderBy(profiles.name);
+  const memberships = await db.select().from(organizationMemberships);
+
+  return {
+    organizations: orgs,
+    users: usersList,
+    memberships: memberships,
+  };
+});
+
+const updateOrganizationSubscriptionSchema = z.object({
+  organizationId: z.string().uuid(),
+  subscriptionValidUntil: z.string().nullable(), // ISO String or null
+  maxUsers: z.number().int().min(1),
+  customFeatures: z.record(z.any()),
+});
+
+export const updateOrganizationSubscription = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateOrganizationSubscriptionSchema>) =>
+    updateOrganizationSubscriptionSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) {
+      throw new Error("Forbidden: Super Admin only.");
+    }
+
+    await db
+      .update(organizations)
+      .set({
+        subscription_valid_until: data.subscriptionValidUntil
+          ? new Date(data.subscriptionValidUntil)
+          : null,
+        max_users: data.maxUsers,
+        custom_features: data.customFeatures,
+        updated_at: new Date(),
+      })
+      .where(eq(organizations.id, data.organizationId));
+  });
+
+const toggleUserBlockStatusSchema = z.object({
+  userId: z.string(),
+  blocked: z.boolean(),
+});
+
+export const toggleUserBlockStatus = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof toggleUserBlockStatusSchema>) =>
+    toggleUserBlockStatusSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) {
+      throw new Error("Forbidden: Super Admin only.");
+    }
+
+    if (data.userId === actor.userId) {
+      throw new Error("Cannot block yourself!");
+    }
+
+    await db
+      .update(profiles)
+      .set({
+        blocked: data.blocked,
+        updated_at: new Date(),
+      })
+      .where(eq(profiles.id, data.userId));
+  });
+
+const updateUserCustomPermissionsSchema = z.object({
+  membershipId: z.string().uuid(),
+  customPermissions: z.record(z.any()),
+});
+
+export const updateUserCustomPermissions = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateUserCustomPermissionsSchema>) =>
+    updateUserCustomPermissionsSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) {
+      throw new Error("Forbidden: Super Admin only.");
+    }
+
+    await db
+      .update(organizationMemberships)
+      .set({
+        custom_permissions: data.customPermissions,
+      })
+      .where(eq(organizationMemberships.id, data.membershipId));
+  });
+
+const updateUserWorkspaceRoleSchema = z.object({
+  membershipId: z.string().uuid(),
+  role: z.enum(["admin", "member", "manager"]),
+});
+
+export const updateUserWorkspaceRole = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateUserWorkspaceRoleSchema>) =>
+    updateUserWorkspaceRoleSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) {
+      throw new Error("Forbidden: Super Admin only.");
+    }
+
+    await db
+      .update(organizationMemberships)
+      .set({
+        role: data.role,
+      })
+      .where(eq(organizationMemberships.id, data.membershipId));
+  });
+
+const deleteOrganizationSchema = z.object({
+  organizationId: z.string().uuid(),
+});
+
+export const deleteOrganization = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof deleteOrganizationSchema>) =>
+    deleteOrganizationSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) {
+      throw new Error("Forbidden: Super Admin only.");
+    }
+
+    await db.delete(organizations).where(eq(organizations.id, data.organizationId));
   });

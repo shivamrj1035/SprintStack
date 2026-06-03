@@ -100,9 +100,7 @@ function ProjectsPage() {
     }
   }
 
-  const filteredProjects = (projectsQ.data ?? []).filter(
-    (p) => p.organization_id === activeOrgId
-  );
+  const filteredProjects = (projectsQ.data ?? []).filter((p) => p.organization_id === activeOrgId);
 
   return (
     <div className="p-4 md:p-6 space-y-4">

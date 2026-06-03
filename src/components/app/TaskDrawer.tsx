@@ -24,13 +24,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  getProjects,
-  getPeople,
-  createTask,
-  updateTask,
-  deleteTask,
-} from "@/server-fns/functions";
+import { getProjects, getPeople, createTask, updateTask, deleteTask } from "@/server-fns/functions";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 export interface TaskDraft {

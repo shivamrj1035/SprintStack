@@ -42,7 +42,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (workspaceQ.isSuccess && organizations.length > 0) {
       const savedId = localStorage.getItem("active_org_id");
       const exists = savedId && organizations.some((org) => org.id === savedId);
-      
+
       if (exists) {
         setActiveOrgIdState(savedId);
       } else {

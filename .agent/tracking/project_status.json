@@ -1,0 +1,16 @@
+[
+  {
+    "project_id": "88adfa6e-21fe-407d-a111-8beee2dbff15",
+    "status": "completed",
+    "visibility": "public",
+    "updated_by": "user_admin_123",
+    "updated_at": "2026-06-03T13:15:00Z"
+  },
+  {
+    "project_id": "9cf32ba2-401d-407a-9ad2-622e1a3bc398",
+    "status": "on_hold",
+    "visibility": "private",
+    "updated_by": "user_admin_123",
+    "updated_at": "2026-05-20T10:00:00Z"
+  }
+]

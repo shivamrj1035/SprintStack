@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
@@ -7,13 +8,17 @@ import {
   Timer,
   Building2,
   StickyNote,
-  Command,
   Search,
   LogOut,
   Layers,
   ChevronDown,
+  Shield,
   Menu,
+  Sun,
+  Moon,
+  Link2,
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -45,18 +50,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+const OVERVIEW_NAV = [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] as const;
+
+// Shown when activeOrg.kind === "organization"
+const ORG_WORK_NAV = [
   { to: "/tasks", label: "Tasks", icon: ListChecks },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/timesheets", label: "Timesheets", icon: Timer },
+] as const;
+
+// Shown when activeOrg.kind === "personal"
+const PERSONAL_NAV = [
   { to: "/todos", label: "To-dos", icon: StickyNote },
+  { to: "/links", label: "Links & Docs", icon: Link2 },
 ] as const;
 
 const ADMIN_NAV = [
   { to: "/organizations", label: "Organizations", icon: Building2 },
   { to: "/forms", label: "Form Templates", icon: Layers },
 ] as const;
+
+const SUPER_ADMIN_NAV = [{ to: "/super-admin", label: "Super Admin", icon: Shield }] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -68,6 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState().location.pathname;
   const { profile, user, signOut, roles, isSuperAdmin } = useAuth();
   const { activeOrgId, activeOrg, setActiveOrgId, organizations } = useWorkspace();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -87,14 +102,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const role = roles.includes("admin")
-    ? "admin"
-    : roles.includes("manager")
-      ? "manager"
-      : "employee";
+  const role = activeOrg?.current_user_role ?? "member";
   const displayRole = isSuperAdmin ? "super_admin" : role;
   const primaryOrganization = activeOrg;
-  const visibleNav = [...NAV, ...ADMIN_NAV];
+  const isPersonalWorkspace = activeOrg?.kind === "personal";
+  const visibleNav = [
+    ...OVERVIEW_NAV,
+    ...ORG_WORK_NAV,
+    ...PERSONAL_NAV,
+    ...ADMIN_NAV,
+    ...SUPER_ADMIN_NAV,
+  ];
+  const [switchingWorkspaceName, setSwitchingWorkspaceName] = useState<string | null>(null);
 
   useEffect(() => {
     setProfileName(profile?.name ?? "");
@@ -119,33 +138,29 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const sidebarContent = (onNavigate?: () => void) => (
     <>
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border/60 bg-sidebar/40 backdrop-blur-md px-4">
         <div
-          className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-primary text-primary-foreground"
-          style={{ background: primaryOrganization?.theme_color ?? undefined }}
+          className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300 hover:scale-105"
+          style={{
+            background: primaryOrganization?.theme_color ?? undefined,
+            border: "1.5px solid rgba(255, 255, 255, 0.15)",
+          }}
         >
           {primaryOrganization?.logo_url ? (
             <img src={primaryOrganization.logo_url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <Layers className="h-3.5 w-3.5" />
+            <Layers className="h-4 w-4" />
           )}
         </div>
-        <span className="min-w-0 truncate font-mono text-[13px] font-semibold tracking-tight">
-          {primaryOrganization?.name ?? "SprintStack"}
-        </span>
+        <div className="flex flex-col min-w-0">
+          <span className="truncate font-display text-[13px] font-bold tracking-tight text-foreground">
+            {primaryOrganization?.name ?? "SprintStack"}
+          </span>
+          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none mt-0.5">
+            {primaryOrganization?.kind === "personal" ? "Personal Space" : "Team Space"}
+          </span>
+        </div>
       </div>
-
-      <button
-        onClick={() => {
-          setPaletteOpen(true);
-          onNavigate?.();
-        }}
-        className="mx-3 mt-3 flex shrink-0 items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-1.5 text-left text-xs text-muted-foreground transition hover:bg-sidebar-accent"
-      >
-        <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search...</span>
-        <span className="kbd shrink-0">Ctrl K</span>
-      </button>
 
       {organizations.length > 0 && (
         <div className="mx-2 mt-3 shrink-0 rounded-md border border-sidebar-border bg-sidebar-accent/20 p-2">
@@ -158,7 +173,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Select
             value={activeOrgId || ""}
             onValueChange={(val) => {
-              setActiveOrgId(val);
+              const selectedOrg = organizations.find((o) => o.id === val);
+              if (selectedOrg) {
+                setSwitchingWorkspaceName(selectedOrg.name);
+                setTimeout(() => {
+                  setActiveOrgId(val);
+                  setSwitchingWorkspaceName(null);
+                }, 3000);
+              } else {
+                setActiveOrgId(val);
+              }
             }}
           >
             <SelectTrigger className="h-8 w-full bg-sidebar border-sidebar-border text-[11px] focus:ring-1 focus:ring-primary py-0 px-2 font-medium">
@@ -183,30 +207,228 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <nav className="mt-4 min-h-0 flex-1 px-2">
-        <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-          Workspace
+      <div className="mt-4 flex-1 overflow-y-auto px-2 space-y-4">
+        {/* Section 1: Overview */}
+        <div className="space-y-0.5">
+          <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+            Overview
+          </div>
+          {OVERVIEW_NAV.map((item) => {
+            const active = path === item.to || path.startsWith(item.to + "/");
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                  active
+                    ? "text-sidebar-accent-foreground font-medium"
+                    : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                {active && (
+                  <motion.div
+                    layoutId="active-nav-indicator"
+                    className="absolute inset-0 rounded-md bg-sidebar-accent"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2 w-full">
+                  <item.icon
+                    className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
+                  />
+                  <span className="min-w-0 truncate">{item.label}</span>
+                  {active && (
+                    <motion.span
+                      layoutId="active-nav-dot"
+                      className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    />
+                  )}
+                </span>
+              </Link>
+            );
+          })}
         </div>
-        {visibleNav.map((item) => {
-          const active = path === item.to || path.startsWith(item.to + "/");
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={onNavigate}
-              className={`group mt-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition ${
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-              }`}
-            >
-              <item.icon className={`h-3.5 w-3.5 shrink-0 ${active ? "text-primary" : ""}`} />
-              <span className="min-w-0 truncate">{item.label}</span>
-              {active && <span className="ml-auto h-1 w-1 shrink-0 rounded-full bg-primary" />}
-            </Link>
-          );
-        })}
-      </nav>
+
+        {/* Section 2: Workspace Work (Only shown if in Team/Organization workspace) */}
+        {!isPersonalWorkspace && (
+          <div className="space-y-0.5">
+            <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Workspace Work
+            </div>
+            {ORG_WORK_NAV.map((item) => {
+              const active = path === item.to || path.startsWith(item.to + "/");
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                    active
+                      ? "text-sidebar-accent-foreground font-medium"
+                      : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="active-nav-indicator"
+                      className="absolute inset-0 rounded-md bg-sidebar-accent"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2 w-full">
+                    <item.icon
+                      className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
+                    />
+                    <span className="min-w-0 truncate">{item.label}</span>
+                    {active && (
+                      <motion.span
+                        layoutId="active-nav-dot"
+                        className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      />
+                    )}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Section 3: Personal Section (Always shown) */}
+        <div className="space-y-0.5">
+          <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+            Personal
+          </div>
+          {PERSONAL_NAV.map((item) => {
+            const active = path === item.to || path.startsWith(item.to + "/");
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                  active
+                    ? "text-sidebar-accent-foreground font-medium"
+                    : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                {active && (
+                  <motion.div
+                    layoutId="active-nav-indicator"
+                    className="absolute inset-0 rounded-md bg-sidebar-accent"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2 w-full">
+                  <item.icon
+                    className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
+                  />
+                  <span className="min-w-0 truncate">{item.label}</span>
+                  {active && (
+                    <motion.span
+                      layoutId="active-nav-dot"
+                      className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    />
+                  )}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Section 3: Super Admin Tools (Only show if Super Admin) */}
+        {isSuperAdmin && (
+          <div className="space-y-0.5">
+            <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Super Admin Tools
+            </div>
+            {SUPER_ADMIN_NAV.map((item) => {
+              const active = path === item.to || path.startsWith(item.to + "/");
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                    active
+                      ? "text-sidebar-accent-foreground font-medium"
+                      : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="active-nav-indicator"
+                      className="absolute inset-0 rounded-md bg-sidebar-accent"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2 w-full">
+                    <item.icon
+                      className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
+                    />
+                    <span className="min-w-0 truncate">{item.label}</span>
+                    {active && (
+                      <motion.span
+                        layoutId="active-nav-dot"
+                        className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      />
+                    )}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Section 4: Admin Actions (Only show if Admin/Manager role and NOT Super Admin) */}
+        {!isSuperAdmin && (role === "admin" || role === "manager") && (
+          <div className="space-y-0.5">
+            <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+              Administration
+            </div>
+            {ADMIN_NAV.map((item) => {
+              const active = path === item.to || path.startsWith(item.to + "/");
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                    active
+                      ? "text-sidebar-accent-foreground font-medium"
+                      : "text-muted-foreground hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="active-nav-indicator"
+                      className="absolute inset-0 rounded-md bg-sidebar-accent"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2 w-full">
+                    <item.icon
+                      className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
+                    />
+                    <span className="min-w-0 truncate">{item.label}</span>
+                    {active && (
+                      <motion.span
+                        layoutId="active-nav-dot"
+                        className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      />
+                    )}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div className="shrink-0 border-t border-sidebar-border p-3">
         <UserMenu
@@ -223,7 +445,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-dvh w-full bg-background text-foreground">
+    <div
+      id="app-shell-container"
+      className="flex min-h-dvh w-full bg-background text-foreground origin-top"
+    >
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 overflow-hidden border-r border-border bg-sidebar md:flex md:flex-col">
         {sidebarContent()}
       </aside>
@@ -277,17 +502,61 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onSignOut={() => signOut()}
               />
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPaletteOpen(true)}
-              className="hidden h-7 gap-2 text-xs text-muted-foreground md:flex"
+            <motion.div
+              whileTap={{ scale: 0.85 }}
+              whileHover={{ rotate: 15 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
             >
-              <Command className="h-3 w-3" /> Ctrl K
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-3.5 w-3.5 text-amber-500" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                )}
+              </Button>
+            </motion.div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setPaletteOpen(true)}
+              className="hidden md:flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-all hover:bg-surface-2 cursor-pointer h-8 w-44 shadow-xs"
+            >
+              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              <span className="min-w-0 flex-1 truncate">Search...</span>
+              <div className="flex items-center gap-0.5 shrink-0 select-none">
+                <span className="kbd text-[9px] px-1 py-0.5 font-mono">⌘K</span>
+                <span className="text-[9px] text-muted-foreground/50">/</span>
+                <span className="kbd text-[9px] px-1 py-0.5 font-mono">Ctrl K</span>
+              </div>
+            </motion.button>
           </div>
         </header>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 overflow-hidden perspective-container">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={path}
+              initial={{ opacity: 0, scale: 0.97, rotateX: 6, z: -50 }}
+              animate={{ opacity: 1, scale: 1, rotateX: 0, z: 0 }}
+              exit={{ opacity: 0, scale: 0.97, rotateX: -6, z: -50 }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 26,
+                mass: 0.8,
+              }}
+              className="h-full w-full origin-center"
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
@@ -324,6 +593,52 @@ export function AppShell({ children }: { children: ReactNode }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AnimatePresence>
+        {switchingWorkspaceName && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md"
+          >
+            {/* Apple Intelligence style ambient glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[450px] w-[450px] rounded-full bg-gradient-to-tr from-primary/30 via-purple-500/20 to-chart-4/30 blur-[100px] animate-pulse pointer-events-none" />
+
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: -10 }}
+              transition={{ type: "spring", stiffness: 200, damping: 25 }}
+              className="relative max-w-sm w-[90%] p-8 rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl text-center select-none"
+            >
+              {/* Spinning Curvy Graphic */}
+              <div className="relative mx-auto h-12 w-12 flex items-center justify-center">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: "linear" }}
+                  className="absolute inset-0 rounded-full border-[3px] border-t-primary border-r-indigo-500 border-b-transparent border-l-transparent"
+                />
+                <motion.div
+                  animate={{ rotate: -360 }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                  className="absolute h-8 w-8 rounded-full border-[2px] border-t-chart-4 border-r-transparent border-b-purple-500 border-l-transparent"
+                />
+              </div>
+
+              <h3 className="mt-6 text-sm font-semibold tracking-tight text-white/95">
+                Setting Up Environment
+              </h3>
+              <p className="mt-1 text-xs text-white/60">Configuring spaces and assets for you...</p>
+
+              <div className="mt-6 px-4 py-2 rounded-xl bg-white/5 border border-white/5 font-display text-[13px] font-bold text-primary tracking-tight">
+                {switchingWorkspaceName}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

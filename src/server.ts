@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "./lib/error-capture";
 
 if (typeof globalThis !== "undefined" && !(globalThis as any).app) {
@@ -24,9 +25,9 @@ if (typeof globalThis !== "undefined") {
     const nitroApp = unctx.get("nitro-app");
     if (nitroApp) {
       const originalUse = nitroApp.use;
-      nitroApp.use = function () {
+      nitroApp.use = function (...args: unknown[]) {
         try {
-          return originalUse.apply(nitroApp, arguments as any);
+          return originalUse.apply(nitroApp, args);
         } catch (error) {
           return {
             event: {

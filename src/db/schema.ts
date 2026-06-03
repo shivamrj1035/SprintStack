@@ -10,7 +10,21 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
-export const appRoleEnum = pgEnum("app_role", ["admin", "manager", "employee"]);
+// ─── Link category type for personal_links ───
+export type LinkCategory =
+  | "doc"
+  | "sheet"
+  | "slide"
+  | "folder"
+  | "image"
+  | "video"
+  | "file"
+  | "excel"
+  | "link"
+  | "other";
+
+// NOTE: app_role enum still exists in the database for backward compat but is no longer used in code.
+// Roles are managed exclusively via organization_memberships.role (workspace_role enum).
 export const workspaceKindEnum = pgEnum("workspace_kind", ["organization", "personal"]);
 export const workspaceRoleEnum = pgEnum("workspace_role", [
   "super_admin",
@@ -24,6 +38,7 @@ export const profiles = pgTable("profiles", {
   email: text("email"),
   name: text("name"),
   avatar_url: text("avatar_url"),
+  blocked: boolean("blocked").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -36,7 +51,9 @@ export const organizations = pgTable("organizations", {
   logo_url: text("logo_url"),
   theme_color: text("theme_color").default("#3B82F6").notNull(),
   modules: text("modules").array().default(["projects", "tasks", "timesheets", "dashboard"]),
-  permission_config: jsonb("permission_config").$type<Record<string, string[]>>().default({}),
+  subscription_valid_until: timestamp("subscription_valid_until"),
+  max_users: integer("max_users").default(100).notNull(),
+  custom_features: jsonb("custom_features").default({}).notNull(),
   created_by: text("created_by").notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -45,17 +62,20 @@ export const organizations = pgTable("organizations", {
 export const organizationMemberships = pgTable("organization_memberships", {
   id: uuid("id").defaultRandom().primaryKey(),
   organization_id: uuid("organization_id")
-    .references(() => organizations.id)
+    .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   user_id: text("user_id").notNull(),
   email: text("email"),
   role: workspaceRoleEnum("role").default("member").notNull(),
+  custom_permissions: jsonb("custom_permissions").default({}).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organization_id: uuid("organization_id").references(() => organizations.id),
+  organization_id: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "cascade",
+  }),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").default("#000000").notNull(),
@@ -67,7 +87,9 @@ export const projects = pgTable("projects", {
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organization_id: uuid("organization_id").references(() => organizations.id),
+  organization_id: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "cascade",
+  }),
   title: text("title").notNull(),
   description: text("description"),
   code: text("code").notNull(),
@@ -79,7 +101,7 @@ export const tasks = pgTable("tasks", {
   due_date: timestamp("due_date"),
   sprint: text("sprint"),
   tags: text("tags").array(),
-  project_id: uuid("project_id").references(() => projects.id),
+  project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
   assignee_id: text("assignee_id"), // References Clerk ID
   created_by: text("created_by"), // References Clerk ID
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -88,10 +110,12 @@ export const tasks = pgTable("tasks", {
 
 export const timesheets = pgTable("timesheets", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organization_id: uuid("organization_id").references(() => organizations.id),
+  organization_id: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "cascade",
+  }),
   user_id: text("user_id").notNull(), // References Clerk ID
-  project_id: uuid("project_id").references(() => projects.id),
-  task_id: uuid("task_id").references(() => tasks.id),
+  project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+  task_id: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
   date: text("date").notNull(), // Using YYYY-MM-DD
   hours: decimal("hours").notNull(),
   billable: boolean("billable").default(true).notNull(),
@@ -103,6 +127,9 @@ export const timesheets = pgTable("timesheets", {
 export const personalTodos = pgTable("personal_todos", {
   id: uuid("id").defaultRandom().primaryKey(),
   user_id: text("user_id").notNull(),
+  organization_id: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
   title: text("title").notNull(),
   notes: text("notes"),
   status: text("status").default("open").notNull(),
@@ -112,20 +139,29 @@ export const personalTodos = pgTable("personal_todos", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const userRoles = pgTable("user_roles", {
+// personal_links — user-curated links for their personal workspace (Google Docs, Folders, etc.)
+export const personalLinks = pgTable("personal_links", {
   id: uuid("id").defaultRandom().primaryKey(),
-  user_id: text("user_id").notNull(), // References Clerk ID
-  role: appRoleEnum("role").notNull(),
+  user_id: text("user_id").notNull(),
+  organization_id: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  category: text("category").notNull().$type<LinkCategory>(), // doc | sheet | folder | image | etc.
+  description: text("description"),
+  pinned: boolean("pinned").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const customTimesheetForms = pgTable("custom_timesheet_forms", {
   id: uuid("id").defaultRandom().primaryKey(),
   organization_id: uuid("organization_id")
-    .references(() => organizations.id)
+    .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   project_id: uuid("project_id")
-    .references(() => projects.id)
+    .references(() => projects.id, { onDelete: "cascade" })
     .notNull(),
   fields: jsonb("fields").default([]).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),

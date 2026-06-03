@@ -1,0 +1,34 @@
+[
+  {
+    "id": "7a35fe60-84cf-471a-85d1-67df768f7422",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "user_id": "user_admin_123",
+    "role": "admin",
+    "status": "active",
+    "joined_at": "2026-01-15T08:35:00Z"
+  },
+  {
+    "id": "e0e2cf6c-132d-45df-bbca-b962776c5f2b",
+    "workspace_id": "0d20d43a-7d12-4fe2-9214-41d3d63b2ad9",
+    "user_id": "user_admin_123",
+    "role": "super_admin",
+    "status": "active",
+    "joined_at": "2026-01-15T08:40:00Z"
+  },
+  {
+    "id": "4e183765-a83d-4c38-89f5-ff8736e4b85c",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "user_id": "user_pm_456",
+    "role": "manager",
+    "status": "active",
+    "joined_at": "2026-02-10T09:20:00Z"
+  },
+  {
+    "id": "fb6cc5cf-ee60-496a-8515-b9fbc746cbcc",
+    "workspace_id": "e4b9f872-9ad6-4074-a029-7977a4c7e6c0",
+    "user_id": "user_dev_789",
+    "role": "member",
+    "status": "active",
+    "joined_at": "2026-03-01T10:05:00Z"
+  }
+]
