@@ -29,8 +29,16 @@ function Landing() {
           <span className="font-mono text-sm font-semibold tracking-tight">SprintStack</span>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/login"><Button variant="ghost" size="sm">Sign in</Button></Link>
-          <Link to="/login"><Button size="sm">Get started <ArrowRight className="ml-1 h-3 w-3" /></Button></Link>
+          <Link to="/login">
+            <Button variant="ghost" size="sm">
+              Sign in
+            </Button>
+          </Link>
+          <Link to="/login">
+            <Button size="sm">
+              Get started <ArrowRight className="ml-1 h-3 w-3" />
+            </Button>
+          </Link>
         </div>
       </header>
 
@@ -40,17 +48,21 @@ function Landing() {
           v0.1 — built for dev teams who hate Jira
         </div>
         <h1 className="mt-6 text-5xl font-semibold tracking-tight md:text-6xl">
-          The execution OS<br />
+          The execution OS
+          <br />
           <span className="bg-gradient-to-r from-primary via-primary to-chart-4 bg-clip-text text-transparent">
             for tech teams.
           </span>
         </h1>
         <p className="mt-6 max-w-xl text-base text-muted-foreground">
-          Dense, keyboard-first, dashboard-driven. Plan sprints, ship tasks, log time — all without clicking through twenty pages.
+          Dense, keyboard-first, dashboard-driven. Plan sprints, ship tasks, log time — all without
+          clicking through twenty pages.
         </p>
         <div className="mt-8 flex gap-3">
           <Link to="/login">
-            <Button size="lg" className="font-medium">Open SprintStack <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            <Button size="lg" className="font-medium">
+              Open SprintStack <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </Link>
           <Button size="lg" variant="outline" className="font-mono">
             <Command className="mr-2 h-4 w-4" /> Press ⌘K anywhere
@@ -60,7 +72,11 @@ function Landing() {
         <div className="mt-24 grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
           {[
             { icon: Zap, title: "Instant", body: "Inline edits, no modals, no waiting." },
-            { icon: Layers, title: "Dense", body: "Spreadsheet feel for tasks. Real estate matters." },
+            {
+              icon: Layers,
+              title: "Dense",
+              body: "Spreadsheet feel for tasks. Real estate matters.",
+            },
             { icon: Timer, title: "Logged", body: "Timers, manual logs, weekly utilization." },
           ].map((f) => (
             <div key={f.title} className="bg-surface p-6">

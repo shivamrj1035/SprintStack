@@ -1,14 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { useUser, useAuth as useClerkAuth } from "@clerk/tanstack-start";
+import type { UserResource } from "@clerk/types";
 
-export type AppRole = "admin" | "manager" | "employee";
+export type AppRole = "super_admin" | "admin" | "manager" | "employee";
 
 interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
+  session: { id: string | null | undefined } | null;
+  user: UserResource | null;
   profile: { name: string | null; email: string | null; avatar_url: string | null } | null;
   roles: AppRole[];
+  isSuperAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -16,49 +17,44 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<AuthContextValue["profile"]>(null);
+  const { isLoaded, isSignedIn, user } = useUser();
+  const { signOut, sessionId } = useClerkAuth();
+
   const [roles, setRoles] = useState<AppRole[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      if (s?.user) {
-        setTimeout(() => loadProfile(s.user.id), 0);
-      } else {
-        setProfile(null);
-        setRoles([]);
+    if (user) {
+      // Extract roles from Clerk public metadata
+      const userRoles = (user.publicMetadata?.roles as AppRole[]) || [];
+      setRoles(userRoles);
+    } else {
+      setRoles([]);
+    }
+  }, [user]);
+
+  const profile = user
+    ? {
+        name: user.fullName || null,
+        email: user.primaryEmailAddress?.emailAddress || null,
+        avatar_url: user.imageUrl || null,
       }
-    });
-
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) loadProfile(s.user.id).finally(() => setLoading(false));
-      else setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function loadProfile(uid: string) {
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from("profiles").select("name,email,avatar_url").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid),
-    ]);
-    setProfile(p ?? null);
-    setRoles((r ?? []).map((x: { role: AppRole }) => x.role));
-  }
+    : null;
+  const isSuperAdmin =
+    profile?.email?.toLowerCase() === "srjtheinfinity1035@gmail.com" ||
+    roles.includes("super_admin");
 
   return (
     <AuthContext.Provider
       value={{
-        session,
-        user: session?.user ?? null,
+        session: isSignedIn ? { id: sessionId } : null,
+        user: user ?? null,
         profile,
-        roles,
-        loading,
-        signOut: async () => { await supabase.auth.signOut(); },
+        roles: isSuperAdmin ? Array.from(new Set(["super_admin", ...roles])) : roles,
+        isSuperAdmin,
+        loading: !isLoaded,
+        signOut: async () => {
+          await signOut();
+        },
       }}
     >
       {children}

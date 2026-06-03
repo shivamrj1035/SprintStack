@@ -1,22 +1,57 @@
 import "./lib/error-capture";
 
+if (typeof globalThis !== "undefined" && !(globalThis as any).app) {
+  (globalThis as any).app = {
+    config: {
+      server: {
+        experimental: {
+          asyncContext: true,
+        },
+      },
+    },
+  };
+}
+
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { createStartHandler, defaultStreamHandler } from "@tanstack/react-start/server";
+import { createClerkHandler } from "@clerk/tanstack-start/server";
 
-type ServerEntry = {
-  fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
-};
-
-let serverEntryPromise: Promise<ServerEntry> | undefined;
-
-async function getServerEntry(): Promise<ServerEntry> {
-  if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
-    );
+// Wrap unctx "nitro-app" to provide a fallback event when context is not available (e.g. during dev/SSR load)
+if (typeof globalThis !== "undefined") {
+  const unctx = (globalThis as any).__unctx__;
+  if (unctx) {
+    const nitroApp = unctx.get("nitro-app");
+    if (nitroApp) {
+      const originalUse = nitroApp.use;
+      nitroApp.use = function () {
+        try {
+          return originalUse.apply(nitroApp, arguments as any);
+        } catch (error) {
+          return {
+            event: {
+              context: new Proxy(
+                {},
+                {
+                  get(target, prop) {
+                    if (typeof prop === "string") {
+                      const processEnv = (globalThis as any).process?.env ?? {};
+                      return processEnv[prop] ?? processEnv[`VITE_${prop}`];
+                    }
+                    return undefined;
+                  },
+                },
+              ),
+            },
+          };
+        }
+      };
+    }
   }
-  return serverEntryPromise;
 }
+
+const clerkHandler = createClerkHandler(createStartHandler as any);
+const ssrHandler = clerkHandler(defaultStreamHandler) as any;
 
 function brandedErrorResponse(): Response {
   return new Response(renderErrorPage(), {
@@ -69,8 +104,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await ssrHandler(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);

@@ -1,0 +1,64 @@
+# Project Management Commands
+
+## Install dependencies
+npm install
+# Installs packages from package-lock.json.
+
+## Local development
+npm run dev
+# Starts the Vite/TanStack Start development server.
+
+npm run preview
+# Serves the production build locally after running npm run build.
+
+## Build and checks
+npm run build
+# Creates a production build in dist/.
+
+npm run build:dev
+# Creates a development-mode build.
+
+npm run lint
+# Runs ESLint across the project.
+
+npm run format
+# Formats files with Prettier.
+
+## Drizzle database commands
+npx drizzle-kit push
+# Pushes src/db/schema.ts directly to the Neon database in DATABASE_URL.
+# Use for quick schema sync during development.
+
+npx drizzle-kit generate
+# Generates SQL migrations from src/db/schema.ts into ./drizzle.
+
+npx drizzle-kit migrate
+# Applies generated Drizzle migrations to the Neon database in DATABASE_URL.
+
+npx drizzle-kit studio
+# Opens Drizzle Studio for browsing and editing database data.
+
+## Neon database notes
+DATABASE_URL=postgresql://...
+# Keep the Neon connection string in .env as DATABASE_URL.
+# Do not commit real database credentials.
+
+npx drizzle-kit check
+# Checks generated migrations for conflicts before applying them.
+
+## Cloudflare / Wrangler
+npx wrangler dev
+# Runs the Cloudflare Worker locally using wrangler.jsonc.
+
+npx wrangler deploy
+# Deploys the Worker using wrangler.jsonc.
+
+## Useful Git commands
+git status
+# Shows changed files.
+
+git diff
+# Shows unstaged changes.
+
+git log --oneline -10
+# Shows recent commits.

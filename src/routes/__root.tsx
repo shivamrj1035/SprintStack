@@ -10,7 +10,9 @@ import {
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
+import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Toaster } from "@/components/ui/sonner";
+import { ClerkProvider } from "@clerk/tanstack-start";
 
 function NotFoundComponent() {
   return (
@@ -75,7 +77,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "SprintStack — execution OS for tech teams" },
-      { name: "description", content: "A lightweight execution OS for tech teams. Tasks, sprints, and timesheets in one dense, keyboard-first workspace." },
+      {
+        name: "description",
+        content:
+          "A lightweight execution OS for tech teams. Tasks, sprints, and timesheets in one dense, keyboard-first workspace.",
+      },
       { name: "author", content: "SprintStack" },
       { property: "og:title", content: "SprintStack" },
       { property: "og:description", content: "Execution OS for tech teams." },
@@ -90,7 +96,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -101,15 +110,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <head>
-        <HeadContent />
-      </head>
-      <body className="bg-background text-foreground antialiased">
-        {children}
-        <Scripts />
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className="dark">
+        <head>
+          <HeadContent />
+        </head>
+        <body className="bg-background text-foreground antialiased">
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
 
@@ -119,8 +130,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
-        <Toaster />
+        <WorkspaceProvider>
+          <Outlet />
+          <Toaster />
+        </WorkspaceProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

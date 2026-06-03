@@ -23,5 +23,9 @@ function AuthLayout() {
       </div>
     );
   }
-  return <AppShell><Outlet /></AppShell>;
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
 }

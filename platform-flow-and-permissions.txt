@@ -1,0 +1,181 @@
+# Platform Flow, Roles, Permissions, and Workspace Model
+
+This platform is a Jira-like work management system combined with a personal task tracking and to-do manager for developers. It supports organization-based workflows for teams and a personal workspace mode for individual users who only want to manage their own projects and tasks.
+
+Database: Neon PostgreSQL will be used as the primary database through DATABASE_URL.
+
+## Core Workspace Types
+
+1. Organization Workspace
+   - Used by companies, teams, agencies, and managed developer groups.
+   - Work is grouped under an organization.
+   - Organization members can access only the organizations they belong to.
+   - Projects, tasks, users, roles, permissions, and settings are organization-scoped.
+
+2. Personal Workspace
+   - Used by an individual developer or user who is not part of an organization.
+   - The user can create a personal workspace, personal projects, and self-assigned tasks.
+   - The user manages everything by themselves without needing an organization admin.
+   - Personal tasks should carry forward if not completed today, so unfinished work remains visible the next day.
+
+## Super Admin
+
+The global super admin is:
+
+srjtheinfinity1035@gmail.com
+
+Only this super admin can:
+
+- Create organizations.
+- Configure organization-level settings.
+- Assign the first organization admin.
+- Manage platform-level permissions and feature availability.
+- Control organization branding and customization.
+- Enable or disable modules for an organization.
+
+Super admin access should be global and not limited to one organization.
+
+## Organization Admin
+
+An organization admin is created or assigned by the super admin for a specific organization.
+
+Organization admins can:
+
+- Manage users inside their own organization.
+- Create and manage projects for their organization.
+- Assign users to projects and tasks.
+- Manage organization-specific roles and permissions, if allowed by super admin settings.
+- View organization dashboards, reports, task progress, and member activity.
+
+Organization admins must not access or manage other organizations.
+
+## Organization Users
+
+Organization users belong to one or more organizations based on access granted by an organization admin or super admin.
+
+Users can:
+
+- View projects they are assigned to.
+- Create, update, and comment on tasks if permissions allow.
+- Track task status, progress, priority, due dates, and time spent.
+- Use personal task tracking alongside organization work, if enabled.
+
+Users should only see data from their own organization memberships and personal workspace.
+
+## Personal Workspace Flow
+
+Personal workspace is for self-managed productivity.
+
+Flow:
+
+1. User signs up or logs in.
+2. User chooses personal workspace mode.
+3. User creates a personal workspace or personal project.
+4. User creates self-managed tasks.
+5. User tracks progress, due date, priority, notes, and completion.
+6. If a task is not completed today, it remains active and appears again the next day.
+7. Completed tasks are archived or shown in history based on user preference.
+
+Personal workspace should feel lightweight and fast, like a developer-focused task board.
+
+## Organization Creation Flow
+
+Flow:
+
+1. Super admin logs in using srjtheinfinity1035@gmail.com.
+2. Super admin creates an organization.
+3. Super admin defines organization details:
+   - Organization name
+   - Company slug
+   - Company logo
+   - Brand colors or color scheme
+   - Enabled modules
+   - Permission presets
+4. Super admin creates or assigns the organization admin.
+5. Organization admin invites users and creates projects.
+6. Users work inside assigned projects and tasks.
+
+## Organization Customization
+
+When creating or managing an organization, the super admin can configure:
+
+- Company slug for URLs and routing.
+- Company logo for branded workspace UI.
+- Color scheme or theme options.
+- Enabled platform modules, such as projects, tasks, timesheets, dashboards, reports, or personal workspace.
+- Available user roles.
+- Permission rules for each role.
+- Feature limits based on plan or internal configuration.
+
+This allows each organization to have its own controlled experience while still using the same platform.
+
+## Suggested Permission Model
+
+Permissions should be role-based and scoped by workspace.
+
+Example permissions:
+
+- organization:create
+- organization:update
+- organization:customize
+- organization:delete
+- org_admin:create
+- user:invite
+- user:remove
+- role:manage
+- project:create
+- project:update
+- project:delete
+- task:create
+- task:update
+- task:assign
+- task:delete
+- task:comment
+- timesheet:create
+- timesheet:approve
+- report:view
+- personal_workspace:create
+- personal_task:create
+- personal_task:update
+
+Every permission check should consider:
+
+- Is this a global super admin action?
+- Is this organization-scoped?
+- Is the user a member of this organization?
+- Is this a personal workspace action?
+- Does the user own this personal workspace or task?
+
+## Smart Task Tracking Behavior
+
+Tasks should support:
+
+- Status: todo, in progress, blocked, review, done.
+- Priority: low, medium, high, urgent.
+- Progress percentage.
+- Due date and carry-forward behavior.
+- Assignee and creator.
+- Project relationship.
+- Organization or personal workspace relationship.
+- Time tracking for developer productivity.
+
+If a task is not completed by the end of the day, it should continue to appear in the user's next-day active task list until marked done, rescheduled, archived, or deleted.
+
+## Data Isolation Rules
+
+- Super admin can access global platform configuration and all organizations.
+- Organization admins can access only their assigned organizations.
+- Organization users can access only assigned organization data.
+- Personal workspace data belongs only to the owning user.
+- Personal workspace data must not leak into organization dashboards unless the user explicitly links or shares it.
+
+## Product Direction
+
+The platform should combine:
+
+- Jira-style organization project management.
+- Developer-focused task tracking.
+- Personal to-do management.
+- Role-based access control.
+- Organization-level branding and customization.
+- Neon-backed relational data for users, organizations, roles, permissions, projects, and tasks.
