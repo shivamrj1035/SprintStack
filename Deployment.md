@@ -10,8 +10,13 @@ OrbitOS is a TanStack Start application built with React, Vite, and Drizzle. By 
 - **Tweak applied**:
   ```typescript
   cloudflare: process.env.VERCEL ? false : undefined,
+  tanstackStart: process.env.VERCEL
+    ? undefined
+    : {
+        server: { entry: "server" },
+      },
   ```
-  This ensures that when Vercel runs the build command, the Cloudflare Vite plugin is bypassed, allowing the standard TanStack Start (Vinxi/Nitro) engine to build for Vercel's Serverless environment.
+  This ensures that when Vercel runs the build command, the Cloudflare Vite plugin is bypassed and the server entry point is not overridden with the Cloudflare Worker adapter, allowing the standard TanStack Start (Vinxi/Nitro) engine to build cleanly for Vercel's Serverless environment.
 
 ---
 
