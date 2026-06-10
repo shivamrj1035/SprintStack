@@ -552,7 +552,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </motion.button>
           </div>
         </header>
-        <main className="min-w-0 flex-1 overflow-hidden">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={path}

@@ -207,8 +207,8 @@ export function MessageThread({
       await deleteConversation({ data: { conversationId: conversation.id } });
       toast.success("Conversation deleted");
       navigate({ to: "/chat" });
-    } catch {
-      toast.error("Failed to delete conversation");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete conversation");
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);

@@ -61,23 +61,20 @@ export function useMessages(conversationId: string | null, currentUserId: string
       setMessages(msgs);
       setLoading(false);
 
-      // Collect messages the current user hasn't read yet
-      const unreadDocs = snap.docs.filter((d) => {
+      // Always clear the conversation-level unread badge while the user is viewing it.
+      // This handles cases where unreadCounts is stale (e.g. messages already in readBy
+      // from a previous session but the count was never decremented).
+      updateDoc(doc(firestoreDb, "conversations", conversationId), {
+        [`unreadCounts.${currentUserId}`]: 0,
+      }).catch(() => {});
+
+      // Mark any individually-unread messages as read
+      snap.docs.forEach((d) => {
         const readBy: string[] = d.data().readBy ?? [];
-        return !readBy.includes(currentUserId);
-      });
-
-      if (unreadDocs.length > 0) {
-        // Reset the conversation-level unread badge for this user
-        updateDoc(doc(firestoreDb, "conversations", conversationId), {
-          [`unreadCounts.${currentUserId}`]: 0,
-        }).catch(() => {});
-
-        // Mark each unread message as read
-        unreadDocs.forEach((d) => {
+        if (!readBy.includes(currentUserId)) {
           updateDoc(d.ref, { readBy: arrayUnion(currentUserId) }).catch(() => {});
-        });
-      }
+        }
+      });
     });
 
     return () => {

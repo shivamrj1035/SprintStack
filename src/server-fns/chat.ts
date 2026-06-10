@@ -292,15 +292,27 @@ export const deleteConversation = createServerFn({ method: "POST" })
     const convRef = adminDb.collection("conversations").doc(data.conversationId);
     const convSnap = await convRef.get();
 
-    if (!convSnap.exists()) throw new Error("Conversation not found");
+    if (!convSnap.exists) throw new Error("Conversation not found");
 
     const participants: string[] = convSnap.data()?.participants ?? [];
     if (!participants.includes(actor.userId)) {
       throw new Error("You are not a participant of this conversation");
     }
 
-    // Recursively deletes the conversation document and all subcollections (messages, etc.)
-    await adminDb.recursiveDelete(convRef);
+    // Delete messages subcollection in batches (recursiveDelete uses BulkWriter / Node streams
+    // which are not available in the Cloudflare Workers edge runtime).
+    const messagesRef = convRef.collection("messages");
+    let hasMore = true;
+    while (hasMore) {
+      const snap = await messagesRef.limit(100).get();
+      if (snap.empty) break;
+      const batch = adminDb.batch();
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      if (snap.size < 100) hasMore = false;
+    }
+
+    await convRef.delete();
 
     return { ok: true };
   });
