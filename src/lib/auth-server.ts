@@ -23,10 +23,7 @@ function utf8ToBase64Url(str: string): string {
   for (let i = 0; i < bytes.byteLength; i++) {
     binString += String.fromCharCode(bytes[i]);
   }
-  return btoa(binString)
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  return btoa(binString).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function base64UrlToUtf8(base64url: string): string {
@@ -59,33 +56,29 @@ export async function signSessionToken(payload: {
   const secret = getJWTSecret();
   const header = { alg: "HS256", typ: "JWT" };
   const encodedHeader = utf8ToBase64Url(JSON.stringify(header));
-  
+
   // 30 days expiration
   const exp = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
   const encodedPayload = utf8ToBase64Url(JSON.stringify({ ...payload, exp }));
-  
+
   const tokenInput = `${encodedHeader}.${encodedPayload}`;
-  
+
   const encoder = new TextEncoder();
   const secretKey = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
-  
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    secretKey,
-    encoder.encode(tokenInput)
-  );
-  
+
+  const signature = await crypto.subtle.sign("HMAC", secretKey, encoder.encode(tokenInput));
+
   const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
     .replace(/=/g, "")
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
-    
+
   return `${tokenInput}.${encodedSignature}`;
 }
 
@@ -100,28 +93,28 @@ export async function verifySessionToken(token: string): Promise<{
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const [headerStr, payloadStr, signatureStr] = parts;
-    
+
     const encoder = new TextEncoder();
     const secretKey = await crypto.subtle.importKey(
       "raw",
       encoder.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
-      ["verify"]
+      ["verify"],
     );
-    
+
     const tokenInput = `${headerStr}.${payloadStr}`;
     const sigBytes = base64UrlToBytes(signatureStr);
-    
+
     const verified = await crypto.subtle.verify(
       "HMAC",
       secretKey,
-      sigBytes,
-      encoder.encode(tokenInput)
+      sigBytes as unknown as ArrayBuffer,
+      encoder.encode(tokenInput) as unknown as ArrayBuffer,
     );
-    
+
     if (!verified) return null;
-    
+
     const payload = JSON.parse(base64UrlToUtf8(payloadStr));
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
       return null;
@@ -133,17 +126,30 @@ export async function verifySessionToken(token: string): Promise<{
 }
 
 // --- Google ID Token Verification ---
-let cachedGoogleCerts: any = null;
+interface GoogleJwk {
+  kid: string;
+  kty: string;
+  alg: string;
+  use: string;
+  n: string;
+  e: string;
+}
+
+interface GoogleCertsResponse {
+  keys: GoogleJwk[];
+}
+
+let cachedGoogleCerts: GoogleCertsResponse | null = null;
 let cachedGoogleCertsFetchTime = 0;
 
-async function getGoogleCerts() {
+async function getGoogleCerts(): Promise<GoogleCertsResponse> {
   const now = Date.now();
   if (cachedGoogleCerts && now - cachedGoogleCertsFetchTime < 3600 * 1000) {
     return cachedGoogleCerts;
   }
   const res = await fetch("https://www.googleapis.com/oauth2/v3/certs");
   if (!res.ok) throw new Error("Failed to fetch Google public certs");
-  cachedGoogleCerts = await res.json();
+  cachedGoogleCerts = (await res.json()) as GoogleCertsResponse;
   cachedGoogleCertsFetchTime = now;
   return cachedGoogleCerts;
 }
@@ -190,7 +196,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
   if (!kid) throw new Error("Missing kid in header");
 
   const certs = await getGoogleCerts();
-  const jwk = certs.keys.find((key: any) => key.kid === kid);
+  const jwk = certs.keys.find((key) => key.kid === kid);
   if (!jwk) throw new Error("Matching JWK not found for kid");
 
   const key = await crypto.subtle.importKey(
@@ -201,7 +207,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
       hash: "SHA-256",
     },
     false,
-    ["verify"]
+    ["verify"],
   );
 
   const encoder = new TextEncoder();
@@ -211,8 +217,8 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
   const verified = await crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     key,
-    signatureBytes,
-    data
+    signatureBytes as unknown as ArrayBuffer,
+    data as unknown as ArrayBuffer,
   );
 
   if (!verified) {
@@ -229,7 +235,7 @@ export function parseCookies(cookieHeader: string | null): Record<string, string
     cookieHeader.split(";").map((c) => {
       const [key, ...val] = c.trim().split("=");
       return [key, val.join("=")];
-    })
+    }),
   );
 }
 
@@ -241,7 +247,10 @@ export const loginWithGoogle = createServerFn({ method: "POST" })
       const payload = await verifyGoogleIdToken(credential);
       const email = payload.email.toLowerCase();
       const userId = payload.sub; // Using Google's sub as profiles.id
-      const name = payload.name || `${payload.given_name || ""} ${payload.family_name || ""}`.trim() || "Google User";
+      const name =
+        payload.name ||
+        `${payload.given_name || ""} ${payload.family_name || ""}`.trim() ||
+        "Google User";
       const avatarUrl = payload.picture || null;
 
       // Ensure user profile in database
@@ -283,43 +292,39 @@ export const loginWithGoogle = createServerFn({ method: "POST" })
       // Set cookie
       setResponseHeader(
         "Set-Cookie",
-        `session=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=${30 * 24 * 60 * 60}`
+        `session=${sessionToken}; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=${30 * 24 * 60 * 60}`,
       );
 
       return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       console.error("Login with Google error:", err);
-      return { success: false, error: err.message };
+      return { success: false, error: errMsg };
     }
   });
 
-export const logoutUser = createServerFn({ method: "POST" })
-  .handler(async () => {
-    setResponseHeader(
-      "Set-Cookie",
-      `session=; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=0`
-    );
-    return { success: true };
+export const logoutUser = createServerFn({ method: "POST" }).handler(async () => {
+  setResponseHeader("Set-Cookie", `session=; HttpOnly; Path=/; SameSite=Lax; Secure; Max-Age=0`);
+  return { success: true };
+});
+
+export const getCurrentSession = createServerFn({ method: "GET" }).handler(async () => {
+  const request = getRequest();
+  const cookies = parseCookies(request.headers.get("cookie"));
+  const sessionToken = cookies.session;
+
+  if (!sessionToken) return null;
+  const session = await verifySessionToken(sessionToken);
+  if (!session) return null;
+
+  // Check if user is blocked in the database
+  const userProfile = await db.query.profiles.findFirst({
+    where: eq(profiles.id, session.userId),
   });
 
-export const getCurrentSession = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const request = getRequest();
-    const cookies = parseCookies(request.headers.get("cookie"));
-    const sessionToken = cookies.session;
+  if (!userProfile || userProfile.blocked) {
+    return null;
+  }
 
-    if (!sessionToken) return null;
-    const session = await verifySessionToken(sessionToken);
-    if (!session) return null;
-
-    // Check if user is blocked in the database
-    const userProfile = await db.query.profiles.findFirst({
-      where: eq(profiles.id, session.userId),
-    });
-
-    if (!userProfile || userProfile.blocked) {
-      return null;
-    }
-
-    return session;
-  });
+  return session;
+});

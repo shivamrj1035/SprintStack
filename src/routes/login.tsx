@@ -12,7 +12,7 @@ export const Route = createFileRoute("/login")({
 
 declare global {
   interface Window {
-    google?: any;
+    google?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 }
 
@@ -37,8 +37,10 @@ function LoginPage() {
 
       try {
         window.google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "1234567890-example.apps.googleusercontent.com",
-          callback: async (response: any) => {
+          client_id:
+            import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+            "1234567890-example.apps.googleusercontent.com",
+          callback: async (response: { credential: string }) => {
             if (!isMounted) return;
             setSigningIn(true);
             try {
@@ -51,8 +53,9 @@ function LoginPage() {
                 toast.error(result.error || "Google Sign-In failed");
                 setSigningIn(false);
               }
-            } catch (err: any) {
-              toast.error(err.message || "An error occurred during authentication");
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              toast.error(errMsg || "An error occurred during authentication");
               setSigningIn(false);
             }
           },
@@ -100,7 +103,10 @@ function LoginPage() {
       <div className="absolute -top-10 -left-10 h-[300px] w-[300px] rounded-full bg-purple-500/5 blur-[80px]" />
 
       <div className="relative w-full max-w-md flex flex-col items-center animate-in fade-in slide-in-from-bottom-6 duration-700">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2 group transition-all duration-300 hover:scale-105">
+        <Link
+          to="/"
+          className="mb-8 flex items-center justify-center gap-2 group transition-all duration-300 hover:scale-105"
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30 group-hover:bg-primary/95 transition-all">
             <Layers className="h-4.5 w-4.5" />
           </div>
@@ -131,9 +137,13 @@ function LoginPage() {
               </div>
             ) : (
               <div className="space-y-4 flex flex-col items-center">
-                <div ref={googleBtnRef} className="w-[320px] transition-all hover:scale-[1.01] active:scale-[0.99]" />
+                <div
+                  ref={googleBtnRef}
+                  className="w-[320px] transition-all hover:scale-[1.01] active:scale-[0.99]"
+                />
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
-                  <Chrome className="h-3 w-3 text-primary" /> Securing authentication with Google SSO
+                  <Chrome className="h-3 w-3 text-primary" /> Securing authentication with Google
+                  SSO
                 </div>
               </div>
             )}

@@ -1,54 +1,82 @@
-# Deploying OrbitOS to Vercel
+# OrbitOS — Production Deployment Playbook (Cloudflare Workers & Neon)
 
-This guide outlines the steps required to deploy the OrbitOS application to **Vercel**.
-
-## 1. Configuration Changes
-
-OrbitOS is a TanStack Start application built with React, Vite, and Drizzle. By default, it is configured to build for Cloudflare Workers/Pages. To support deploying to Vercel, the configuration in [vite.config.ts](file:///d:/Shivam/OrbitOS/vite.config.ts) has been updated to automatically disable Cloudflare-specific plugins when building on Vercel:
-
-- **File modified**: [vite.config.ts](file:///d:/Shivam/OrbitOS/vite.config.ts)
-- **Tweak applied**:
-  ```typescript
-  cloudflare: process.env.VERCEL ? false : undefined,
-  ```
-  This ensures that when Vercel runs the build command, the Cloudflare Vite plugin is bypassed, allowing the standard TanStack Start (Vinxi/Nitro) engine to build for Vercel's Serverless environment.
+This guide outlines the production-grade deployment architecture, secrets management, and CI/CD automation for **OrbitOS** (TanStack Start + Drizzle ORM + Neon Postgres + Google SSO) targetting **Cloudflare Workers**.
 
 ---
 
-## 2. Setting Up the Database (Neon Postgres)
+## 1. System Architecture Overview
 
-OrbitOS uses Neon Serverless Postgres with Drizzle ORM.
+```mermaid
+graph TD
+    User[Client Browser] -->|HTTPS| CF[Cloudflare Workers / CDN]
+    CF -->|Web Crypto Session| JWT[JWT Cookie Engine]
+    CF -->|Pooling / TCP| Neon[Neon Serverless Postgres]
+    CF -->|OAuth Callback| Google[Google Identity Provider]
+```
 
-1. **Create a Neon Database**:
-   - Go to [Neon Console](https://console.neon.tech/) and create a new project.
-   - Copy the connection string.
-2. **Push the Schema**:
-   - Run the following command locally to push the database schema to your Neon database (ensure you have the connection string in your local [.env](file:///d:/Shivam/OrbitOS/.env) or pass it directly):
-     ```bash
-     npx drizzle-kit push
-     ```
+- **Runtime Environment**: Cloudflare Workers (V8 Edge Runtime) with `nodejs_compat` compatibility.
+- **Database Layer**: Neon Serverless Postgres, using the `@neondatabase/serverless` WebSockets-based driver for edge compatibility.
+- **Authentication**: Native Google SSO (JWT session tokens stored in secure, `HttpOnly`, `SameSite=Lax` cookies).
 
 ---
 
-## 3. Deployment Steps on Vercel
+## 2. Environment Variables & Secrets Management
 
-1. **Import the Repository**:
-   - Go to the Vercel Dashboard and click **Add New** > **Project**.
-   - Import your git repository.
-2. **Configure Project Settings**:
-   - **Framework Preset**: Vercel will automatically detect the framework. Select **Other** or **TanStack Start** (if available).
-   - **Build Command**: `npm run build`
-   - **Output Directory**: Leave as default (Vercel automatically detects the Nitro build output).
-3. **Configure Environment Variables**:
-   Add the following environment variables in the project settings:
+Review and configure the following variables. Do **not** commit values to source control.
 
-   | Variable Name                | Description / Value                                        |
-   | ---------------------------- | ---------------------------------------------------------- |
-   | `DATABASE_URL`               | Neon Postgres Connection String (e.g., `postgresql://...`) |
-   | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk Publishable Key (from Clerk dashboard)               |
-   | `CLERK_SECRET_KEY`           | Clerk Secret Key (from Clerk dashboard)                    |
-   | `CLERK_SIGN_IN_URL`          | `/login`                                                   |
-   | `CLERK_SIGN_UP_URL`          | `/login`                                                   |
+| Variable Name | Context | Deployment Value | Description |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | Server | Secret | Connection string from Neon. Must use the connection-pooled endpoint. |
+| `VITE_GOOGLE_CLIENT_ID` | Client & Server | Public | Google OAuth 2.0 Web Client ID. |
+| `JWT_SECRET` | Server | Secret | A strong cryptographically secure secret (minimum 32 bytes) for signing cookies. |
 
-4. **Deploy**:
-   - Click **Deploy**. Vercel will compile the client assets, build the SSR server entry, and deploy the application as Serverless/Edge functions.
+---
+
+## 3. Database Sync & Operations
+
+Edge functions require efficient database connection lifecycle management.
+
+### Schema Sync
+Before triggering a production deployment, ensure the Neon schema is synchronized. Run this command locally:
+```bash
+npx drizzle-kit push
+```
+
+> [!IMPORTANT]
+> **Edge Connection Pooling**: Ensure you are using the pooled connection string (typically containing `-pooler` in the host name) in the production environment. Since Cloudflare Workers scale horizontally on every incoming request, they can rapidly exhaust Postgres connection slots without a pooler.
+
+---
+
+## 4. Production CI/CD Setup (GitHub Actions)
+
+We manage production deployments via GitHub Actions. When code is pushed or merged into `main`, the build compiles assets and deploys them to Cloudflare.
+
+The workflow configuration is defined at [.github/workflows/deploy.yml](file:///.github/workflows/deploy.yml).
+
+### Step-by-Step Repository Setup
+1. In your GitHub repository, navigate to **Settings > Secrets and variables > Actions**.
+2. Add the following **Repository Secrets**:
+   - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API Token (create one using the *Edit Cloudflare Workers* template).
+   - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID.
+   - `DATABASE_URL`: Your production Neon connection string.
+   - `VITE_GOOGLE_CLIENT_ID`: Your production Google Client ID.
+   - `JWT_SECRET`: A high-entropy session signing key.
+
+---
+
+## 5. Local Deployments (Manual Bypass)
+
+If you need to perform hot-fixes or manual deployments from your local machine, ensure your `.env` contains the required keys and run:
+```bash
+npm run deploy
+```
+This script automates `npm run build` and invokes `wrangler deploy` to publish the worker.
+
+---
+
+## 6. Pre-Flight Checklist
+
+Before final sign-off, verify:
+- [ ] **Google OAuth Redirects**: Make sure your production domain is added to **Authorized JavaScript origins** in your Google Cloud Console.
+- [ ] **HTTPS Enforced**: Cloudflare SSL is enabled (Full or Strict). HTTP-Only session cookies will fail to send on unencrypted HTTP protocol under standard `Secure` constraints.
+- [ ] **JWT Key Rotation**: Set a reminder to periodically rotate your `JWT_SECRET` in production secrets.

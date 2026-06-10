@@ -75,9 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: sessionData.userId,
         fullName: sessionData.name,
         imageUrl: sessionData.avatarUrl,
-        primaryEmailAddress: sessionData.email
-          ? { emailAddress: sessionData.email }
-          : undefined,
+        primaryEmailAddress: sessionData.email ? { emailAddress: sessionData.email } : undefined,
       }
     : null;
 
