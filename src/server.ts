@@ -16,7 +16,6 @@ if (typeof globalThis !== "undefined" && !(globalThis as any).app) {
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { createStartHandler, defaultStreamHandler } from "@tanstack/react-start/server";
-import { createClerkHandler } from "@clerk/tanstack-start/server";
 
 // Wrap unctx "nitro-app" to provide a fallback event when context is not available (e.g. during dev/SSR load)
 if (typeof globalThis !== "undefined") {
@@ -51,8 +50,7 @@ if (typeof globalThis !== "undefined") {
   }
 }
 
-const clerkHandler = createClerkHandler(createStartHandler as any);
-const ssrHandler = clerkHandler(defaultStreamHandler) as any;
+const ssrHandler = createStartHandler(defaultStreamHandler) as any;
 
 function brandedErrorResponse(): Response {
   return new Response(renderErrorPage(), {

@@ -12,7 +12,6 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Toaster } from "@/components/ui/sonner";
-import { ClerkProvider } from "@clerk/tanstack-start";
 
 function NotFoundComponent() {
   return (
@@ -110,31 +109,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <head>
-          <HeadContent />
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-            (function() {
-              const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-              if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            })()
-          `,
-            }}
-          />
-        </head>
-        <body className="bg-background text-foreground antialiased">
-          {children}
-          <Scripts />
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <head>
+        <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+          (function() {
+            const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            if (theme === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          })()
+        `,
+          }}
+        />
+        <script src="https://accounts.google.com/gsi/client" async defer />
+      </head>
+      <body className="bg-background text-foreground antialiased">
+        {children}
+        <Scripts />
+      </body>
+    </html>
   );
 }
 

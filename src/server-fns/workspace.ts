@@ -1,8 +1,8 @@
-import { getAuth, clerkClient } from "@clerk/tanstack-start/server";
 import { getRequest } from "@tanstack/react-start/server";
 import { db } from "@/db";
 import { organizationMemberships, organizations, profiles } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { parseCookies, verifySessionToken } from "@/lib/auth-server";
 
 export const SUPER_ADMIN_EMAIL = "srjtheinfinity1035@gmail.com";
 
@@ -18,37 +18,22 @@ export interface CurrentActor {
 
 export async function getCurrentActor(): Promise<CurrentActor> {
   const request = getRequest();
-  const authRequest = new Request(request.url, {
-    method: "GET",
-    headers: request.headers,
-  });
-  const auth = await getAuth(authRequest);
-  if (!auth?.userId) throw new Error("Unauthorized");
+  const cookies = parseCookies(request.headers.get("cookie"));
+  const sessionToken = cookies.session;
 
-  const claims = "sessionClaims" in auth ? auth.sessionClaims : null;
-  const claimEmail =
-    typeof claims === "object" && claims
-      ? ((claims as { email?: string; primary_email_address?: string }).email ??
-        (claims as { email?: string; primary_email_address?: string }).primary_email_address ??
-        null)
-      : null;
+  if (!sessionToken) throw new Error("Unauthorized");
+  const session = await verifySessionToken(sessionToken);
+  if (!session) throw new Error("Unauthorized");
 
-  let email = claimEmail;
-  let name: string | null = null;
-  let avatarUrl: string | null = null;
-
-  if (!email) {
-    const client = clerkClient({});
-    const user = await client.users.getUser(auth.userId);
-    email = user.primaryEmailAddress?.emailAddress ?? null;
-    name = user.fullName;
-    avatarUrl = user.imageUrl;
-  }
+  const userId = session.userId;
+  const email = session.email;
+  const name = session.name;
+  const avatarUrl = session.avatarUrl;
 
   await db
     .insert(profiles)
     .values({
-      id: auth.userId,
+      id: userId,
       email,
       name,
       avatar_url: avatarUrl,
@@ -61,7 +46,7 @@ export async function getCurrentActor(): Promise<CurrentActor> {
   if (email) {
     await db
       .update(organizationMemberships)
-      .set({ user_id: auth.userId })
+      .set({ user_id: userId })
       .where(
         and(
           eq(organizationMemberships.email, email.toLowerCase()),
@@ -72,7 +57,7 @@ export async function getCurrentActor(): Promise<CurrentActor> {
 
   // Check if user is blocked
   const dbProfile = await db.query.profiles.findFirst({
-    where: eq(profiles.id, auth.userId),
+    where: eq(profiles.id, userId),
   });
 
   if (dbProfile?.blocked) {
@@ -80,7 +65,7 @@ export async function getCurrentActor(): Promise<CurrentActor> {
   }
 
   return {
-    userId: auth.userId,
+    userId,
     email,
     name,
     avatarUrl,

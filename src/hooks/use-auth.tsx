@@ -1,60 +1,110 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useUser, useAuth as useClerkAuth } from "@clerk/tanstack-start";
-import type { UserResource } from "@clerk/types";
+import { getCurrentSession, logoutUser } from "@/lib/auth-server";
 
 export type AppRole = "super_admin" | "admin" | "manager" | "employee";
 
 interface AuthContextValue {
   session: { id: string | null | undefined } | null;
-  user: UserResource | null;
+  user: {
+    id: string;
+    fullName: string | null;
+    imageUrl: string | null;
+    primaryEmailAddress?: {
+      emailAddress: string;
+    };
+  } | null;
   profile: { name: string | null; email: string | null; avatar_url: string | null } | null;
   roles: AppRole[];
   isSuperAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  refetchSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn, user } = useUser();
-  const { signOut, sessionId } = useClerkAuth();
-
+  const [sessionData, setSessionData] = useState<{
+    userId: string;
+    email: string | null;
+    name: string | null;
+    avatarUrl: string | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<AppRole[]>([]);
 
+  const fetchSession = async () => {
+    try {
+      const data = await getCurrentSession();
+      setSessionData(data);
+    } catch (err) {
+      console.error("Failed to load session:", err);
+      setSessionData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (user) {
-      // Extract roles from Clerk public metadata
-      const userRoles = (user.publicMetadata?.roles as AppRole[]) || [];
-      setRoles(userRoles);
+    fetchSession();
+  }, []);
+
+  useEffect(() => {
+    if (sessionData) {
+      const isSuperAdmin = sessionData.email?.toLowerCase() === "srjtheinfinity1035@gmail.com";
+      setRoles(isSuperAdmin ? ["super_admin"] : []);
     } else {
       setRoles([]);
     }
-  }, [user]);
+  }, [sessionData]);
 
-  const profile = user
+  const profile = sessionData
     ? {
-        name: user.fullName || null,
-        email: user.primaryEmailAddress?.emailAddress || null,
-        avatar_url: user.imageUrl || null,
+        name: sessionData.name || null,
+        email: sessionData.email || null,
+        avatar_url: sessionData.avatarUrl || null,
       }
     : null;
+
   const isSuperAdmin =
     profile?.email?.toLowerCase() === "srjtheinfinity1035@gmail.com" ||
     roles.includes("super_admin");
 
+  const user = sessionData
+    ? {
+        id: sessionData.userId,
+        fullName: sessionData.name,
+        imageUrl: sessionData.avatarUrl,
+        primaryEmailAddress: sessionData.email
+          ? { emailAddress: sessionData.email }
+          : undefined,
+      }
+    : null;
+
+  const handleSignOut = async () => {
+    setLoading(true);
+    try {
+      await logoutUser();
+      setSessionData(null);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    } finally {
+      setLoading(false);
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
-        session: isSignedIn ? { id: sessionId } : null,
-        user: user ?? null,
+        session: sessionData ? { id: sessionData.userId } : null,
+        user,
         profile,
         roles: isSuperAdmin ? Array.from(new Set(["super_admin", ...roles])) : roles,
         isSuperAdmin,
-        loading: !isLoaded,
-        signOut: async () => {
-          await signOut();
-        },
+        loading,
+        signOut: handleSignOut,
+        refetchSession: fetchSession,
       }}
     >
       {children}
