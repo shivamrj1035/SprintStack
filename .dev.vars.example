@@ -1,0 +1,11 @@
+# Copy this file to .dev.vars and fill in real values.
+# .dev.vars is gitignored and read by @cloudflare/vite-plugin (Miniflare) during local dev.
+# Vite's .env is NOT used for server-side code — only VITE_* vars are build-time inlined.
+
+DATABASE_URL=postgresql://user:password@pooler.host/dbname?sslmode=require
+JWT_SECRET=your-jwt-secret-at-least-32-chars
+
+# Paste the entire Firebase service account JSON on ONE line.
+# The private_key newlines must remain as literal \n (two chars), not real newlines.
+# Example: {"type":"service_account","project_id":"my-project","private_key_id":"abc","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEv...\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk@my-project.iam.gserviceaccount.com","client_id":"123","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token"}
+FIREBASE_SERVICE_ACCOUNT_KEY=

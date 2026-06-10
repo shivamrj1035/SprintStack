@@ -246,12 +246,21 @@ export const loginWithGoogle = createServerFn({ method: "POST" })
     try {
       const payload = await verifyGoogleIdToken(credential);
       const email = payload.email.toLowerCase();
-      const userId = payload.sub; // Using Google's sub as profiles.id
+      const googleSub = payload.sub;
       const name =
         payload.name ||
         `${payload.given_name || ""} ${payload.family_name || ""}`.trim() ||
         "Google User";
       const avatarUrl = payload.picture || null;
+
+      // If a profile already exists for this email (e.g. from a prior Clerk migration or a
+      // previous login under a different OAuth client ID), reuse that profile's canonical ID
+      // rather than creating a second row for the same person.
+      const existingByEmail = await db.query.profiles.findFirst({
+        where: eq(profiles.email, email),
+        columns: { id: true, blocked: true },
+      });
+      const userId = existingByEmail?.id ?? googleSub;
 
       // Ensure user profile in database
       const [userProfile] = await db

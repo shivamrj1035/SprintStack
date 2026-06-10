@@ -24,11 +24,11 @@ graph TD
 
 Review and configure the following variables. Do **not** commit values to source control.
 
-| Variable Name | Context | Deployment Value | Description |
-| :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | Server | Secret | Connection string from Neon. Must use the connection-pooled endpoint. |
-| `VITE_GOOGLE_CLIENT_ID` | Client & Server | Public | Google OAuth 2.0 Web Client ID. |
-| `JWT_SECRET` | Server | Secret | A strong cryptographically secure secret (minimum 32 bytes) for signing cookies. |
+| Variable Name           | Context         | Deployment Value | Description                                                                      |
+| :---------------------- | :-------------- | :--------------- | :------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | Server          | Secret           | Connection string from Neon. Must use the connection-pooled endpoint.            |
+| `VITE_GOOGLE_CLIENT_ID` | Client & Server | Public           | Google OAuth 2.0 Web Client ID.                                                  |
+| `JWT_SECRET`            | Server          | Secret           | A strong cryptographically secure secret (minimum 32 bytes) for signing cookies. |
 
 ---
 
@@ -37,7 +37,9 @@ Review and configure the following variables. Do **not** commit values to source
 Edge functions require efficient database connection lifecycle management.
 
 ### Schema Sync
+
 Before triggering a production deployment, ensure the Neon schema is synchronized. Run this command locally:
+
 ```bash
 npx drizzle-kit push
 ```
@@ -54,9 +56,10 @@ We manage production deployments via GitHub Actions. When code is pushed or merg
 The workflow configuration is defined at [.github/workflows/deploy.yml](file:///.github/workflows/deploy.yml).
 
 ### Step-by-Step Repository Setup
+
 1. In your GitHub repository, navigate to **Settings > Secrets and variables > Actions**.
 2. Add the following **Repository Secrets**:
-   - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API Token (create one using the *Edit Cloudflare Workers* template).
+   - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API Token (create one using the _Edit Cloudflare Workers_ template).
    - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID.
    - `DATABASE_URL`: Your production Neon connection string.
    - `VITE_GOOGLE_CLIENT_ID`: Your production Google Client ID.
@@ -67,9 +70,11 @@ The workflow configuration is defined at [.github/workflows/deploy.yml](file:///
 ## 5. Local Deployments (Manual Bypass)
 
 If you need to perform hot-fixes or manual deployments from your local machine, ensure your `.env` contains the required keys and run:
+
 ```bash
 npm run deploy
 ```
+
 This script automates `npm run build` and invokes `wrangler deploy` to publish the worker.
 
 ---
@@ -77,6 +82,7 @@ This script automates `npm run build` and invokes `wrangler deploy` to publish t
 ## 6. Pre-Flight Checklist
 
 Before final sign-off, verify:
+
 - [ ] **Google OAuth Redirects**: Make sure your production domain is added to **Authorized JavaScript origins** in your Google Cloud Console.
 - [ ] **HTTPS Enforced**: Cloudflare SSL is enabled (Full or Strict). HTTP-Only session cookies will fail to send on unencrypted HTTP protocol under standard `Secure` constraints.
 - [ ] **JWT Key Rotation**: Set a reminder to periodically rotate your `JWT_SECRET` in production secrets.

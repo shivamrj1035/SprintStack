@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { organizationMemberships, organizations, profiles } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { parseCookies, verifySessionToken } from "@/lib/auth-server";
+import { getAdminFirestore } from "@/lib/firebase-admin";
 
 export const SUPER_ADMIN_EMAIL = "srjtheinfinity1035@gmail.com";
 
@@ -53,6 +54,9 @@ export async function getCurrentActor(): Promise<CurrentActor> {
           eq(organizationMemberships.user_id, `pending:${email.toLowerCase()}`),
         ),
       );
+
+    // Claim any pending chat invites (fire-and-forget — don't block auth)
+    claimFirestoreInvites(userId, email).catch(() => {});
   }
 
   // Check if user is blocked
@@ -141,4 +145,30 @@ export async function requireWorkspaceRole(
 export function scopedOrganizationFilter(ids: string[]) {
   if (ids.length === 0) return undefined;
   return inArray(organizations.id, ids);
+}
+
+async function claimFirestoreInvites(userId: string, email: string) {
+  const { FieldValue } = await import("firebase-admin/firestore");
+  const adminDb = getAdminFirestore();
+
+  const snap = await adminDb
+    .collection("platformInvites")
+    .where("email", "==", email.toLowerCase())
+    .where("used", "==", false)
+    .get();
+
+  for (const doc of snap.docs) {
+    const invite = doc.data();
+    await doc.ref.update({ used: true });
+
+    if (invite.conversationId) {
+      await adminDb
+        .collection("conversations")
+        .doc(invite.conversationId as string)
+        .update({
+          participants: FieldValue.arrayUnion(userId),
+          [`unreadCounts.${userId}`]: 0,
+        });
+    }
+  }
 }

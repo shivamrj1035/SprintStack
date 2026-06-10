@@ -20,8 +20,11 @@ import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedOrganizationsRouteImport } from './routes/_authenticated/organizations'
 import { Route as AuthenticatedLinksRouteImport } from './routes/_authenticated/links'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedFormsIndexRouteImport } from './routes/_authenticated/forms.index'
+import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
 import { Route as AuthenticatedFormsIdRouteImport } from './routes/_authenticated/forms.$id'
+import { Route as AuthenticatedChatConversationIdRouteImport } from './routes/_authenticated/chat.$conversationId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -78,20 +81,37 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFormsIndexRoute = AuthenticatedFormsIndexRouteImport.update({
   id: '/forms/',
   path: '/forms/',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedChatRoute,
 } as any)
 const AuthenticatedFormsIdRoute = AuthenticatedFormsIdRouteImport.update({
   id: '/forms/$id',
   path: '/forms/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChatConversationIdRoute =
+  AuthenticatedChatConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AuthenticatedChatRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/chat': typeof AuthenticatedChatRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/links': typeof AuthenticatedLinksRoute
   '/organizations': typeof AuthenticatedOrganizationsRoute
@@ -100,7 +120,9 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRoute
   '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/todos': typeof AuthenticatedTodosRoute
+  '/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
   '/forms/$id': typeof AuthenticatedFormsIdRoute
+  '/chat/': typeof AuthenticatedChatIndexRoute
   '/forms/': typeof AuthenticatedFormsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -114,7 +136,9 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRoute
   '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/todos': typeof AuthenticatedTodosRoute
+  '/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
   '/forms/$id': typeof AuthenticatedFormsIdRoute
+  '/chat': typeof AuthenticatedChatIndexRoute
   '/forms': typeof AuthenticatedFormsIndexRoute
 }
 export interface FileRoutesById {
@@ -122,6 +146,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/chat': typeof AuthenticatedChatRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/links': typeof AuthenticatedLinksRoute
   '/_authenticated/organizations': typeof AuthenticatedOrganizationsRoute
@@ -130,7 +155,9 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/timesheets': typeof AuthenticatedTimesheetsRoute
   '/_authenticated/todos': typeof AuthenticatedTodosRoute
+  '/_authenticated/chat/$conversationId': typeof AuthenticatedChatConversationIdRoute
   '/_authenticated/forms/$id': typeof AuthenticatedFormsIdRoute
+  '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
   '/_authenticated/forms/': typeof AuthenticatedFormsIndexRoute
 }
 export interface FileRouteTypes {
@@ -138,6 +165,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/chat'
     | '/dashboard'
     | '/links'
     | '/organizations'
@@ -146,7 +174,9 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/timesheets'
     | '/todos'
+    | '/chat/$conversationId'
     | '/forms/$id'
+    | '/chat/'
     | '/forms/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -160,13 +190,16 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/timesheets'
     | '/todos'
+    | '/chat/$conversationId'
     | '/forms/$id'
+    | '/chat'
     | '/forms'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/chat'
     | '/_authenticated/dashboard'
     | '/_authenticated/links'
     | '/_authenticated/organizations'
@@ -175,7 +208,9 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/timesheets'
     | '/_authenticated/todos'
+    | '/_authenticated/chat/$conversationId'
     | '/_authenticated/forms/$id'
+    | '/_authenticated/chat/'
     | '/_authenticated/forms/'
   fileRoutesById: FileRoutesById
 }
@@ -264,12 +299,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/chat': {
+      id: '/_authenticated/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthenticatedChatRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/forms/': {
       id: '/_authenticated/forms/'
       path: '/forms'
       fullPath: '/forms/'
       preLoaderRoute: typeof AuthenticatedFormsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/chat/': {
+      id: '/_authenticated/chat/'
+      path: '/'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AuthenticatedChatIndexRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
     }
     '/_authenticated/forms/$id': {
       id: '/_authenticated/forms/$id'
@@ -278,10 +327,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFormsIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/chat/$conversationId': {
+      id: '/_authenticated/chat/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/chat/$conversationId'
+      preLoaderRoute: typeof AuthenticatedChatConversationIdRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
   }
 }
 
+interface AuthenticatedChatRouteChildren {
+  AuthenticatedChatConversationIdRoute: typeof AuthenticatedChatConversationIdRoute
+  AuthenticatedChatIndexRoute: typeof AuthenticatedChatIndexRoute
+}
+
+const AuthenticatedChatRouteChildren: AuthenticatedChatRouteChildren = {
+  AuthenticatedChatConversationIdRoute: AuthenticatedChatConversationIdRoute,
+  AuthenticatedChatIndexRoute: AuthenticatedChatIndexRoute,
+}
+
+const AuthenticatedChatRouteWithChildren =
+  AuthenticatedChatRoute._addFileChildren(AuthenticatedChatRouteChildren)
+
 interface AuthenticatedRouteChildren {
+  AuthenticatedChatRoute: typeof AuthenticatedChatRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLinksRoute: typeof AuthenticatedLinksRoute
   AuthenticatedOrganizationsRoute: typeof AuthenticatedOrganizationsRoute
@@ -295,6 +365,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedChatRoute: AuthenticatedChatRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLinksRoute: AuthenticatedLinksRoute,
   AuthenticatedOrganizationsRoute: AuthenticatedOrganizationsRoute,

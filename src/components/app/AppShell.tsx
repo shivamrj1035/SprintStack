@@ -17,7 +17,9 @@ import {
   Sun,
   Moon,
   Link2,
+  MessageSquare,
 } from "lucide-react";
+import { useConversations } from "@/hooks/use-conversations";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -50,7 +52,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const OVERVIEW_NAV = [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] as const;
+const OVERVIEW_NAV = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
+] as const;
 
 // Shown when activeOrg.kind === "organization"
 const ORG_WORK_NAV = [
@@ -80,9 +85,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [profileUsername, setProfileUsername] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const path = useRouterState().location.pathname;
-  const { profile, user, signOut, roles, isSuperAdmin } = useAuth();
+  const { session, profile, user, signOut, roles, isSuperAdmin } = useAuth();
   const { activeOrgId, activeOrg, setActiveOrgId, organizations } = useWorkspace();
   const { theme, toggleTheme } = useTheme();
+  const isPersonalWs = activeOrg?.kind === "personal";
+  const chatOrgFilter = isPersonalWs ? null : (activeOrg?.id ?? null);
+  const { conversations: chatConvs } = useConversations(session?.id ?? null, chatOrgFilter);
+  const totalUnread = chatConvs.reduce(
+    (sum, c) => sum + (c.unreadCounts[session?.id ?? ""] ?? 0),
+    0,
+  );
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -196,9 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       className="h-2 w-2 shrink-0 rounded-full"
                       style={{ background: org.theme_color }}
                     />
-                    <span>
-                      {org.kind === "personal" ? "✨ Personal Workspace" : `📁 ${org.name}`}
-                    </span>
+                    <span>{org.kind === "personal" ? "Personal Workspace" : org.name}</span>
                   </span>
                 </SelectItem>
               ))}
@@ -230,7 +240,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <motion.div
                     layoutId="active-nav-indicator"
                     className="absolute inset-0 rounded-md bg-sidebar-accent"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    transition={{ type: "spring", stiffness: 350, damping: 32, mass: 0.8 }}
                   />
                 )}
                 <span className="relative z-10 flex items-center gap-2 w-full">
@@ -238,6 +248,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className={`h-3.5 w-3.5 shrink-0 transition-colors duration-200 ${active ? "text-primary" : ""}`}
                   />
                   <span className="min-w-0 truncate">{item.label}</span>
+                  {item.to === "/chat" && totalUnread > 0 && !active && (
+                    <span className="ml-auto h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shrink-0">
+                      {totalUnread > 99 ? "99+" : totalUnread}
+                    </span>
+                  )}
                   {active && (
                     <motion.span
                       layoutId="active-nav-dot"
@@ -274,7 +289,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <motion.div
                       layoutId="active-nav-indicator"
                       className="absolute inset-0 rounded-md bg-sidebar-accent"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 32, mass: 0.8 }}
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-2 w-full">
@@ -362,7 +377,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <motion.div
                       layoutId="active-nav-indicator"
                       className="absolute inset-0 rounded-md bg-sidebar-accent"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 32, mass: 0.8 }}
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-2 w-full">
@@ -407,7 +422,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <motion.div
                       layoutId="active-nav-indicator"
                       className="absolute inset-0 rounded-md bg-sidebar-accent"
-                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 32, mass: 0.8 }}
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-2 w-full">
@@ -447,7 +462,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div
       id="app-shell-container"
-      className="flex min-h-dvh w-full bg-background text-foreground origin-top"
+      className="flex h-dvh w-full bg-background text-foreground origin-top"
     >
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 overflow-hidden border-r border-border bg-sidebar md:flex md:flex-col">
         {sidebarContent()}
@@ -537,21 +552,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             </motion.button>
           </div>
         </header>
-        <main className="min-w-0 flex-1 overflow-hidden perspective-container">
+        <main className="min-w-0 flex-1 overflow-hidden">
           <AnimatePresence mode="wait">
             <motion.div
               key={path}
-              initial={{ opacity: 0, scale: 0.97, rotateX: 6, z: -50 }}
-              animate={{ opacity: 1, scale: 1, rotateX: 0, z: 0 }}
-              exit={{ opacity: 0, scale: 0.97, rotateX: -6, z: -50 }}
+              initial={{ opacity: 0, scale: 0.985, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.985, y: -8 }}
               transition={{
-                type: "spring",
-                stiffness: 260,
-                damping: 26,
-                mass: 0.8,
+                duration: 0.28,
+                ease: [0.16, 1, 0.3, 1],
               }}
               className="h-full w-full origin-center"
-              style={{ transformStyle: "preserve-3d" }}
             >
               {children}
             </motion.div>

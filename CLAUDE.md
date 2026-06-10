@@ -62,13 +62,40 @@ Every user has a **personal workspace** (auto-created). Users can also belong to
 
 ## Environment Variables
 
-| Variable | Where used |
-|---|---|
-| `DATABASE_URL` | Neon pooler connection string (server-side) |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID (exposed to client) |
-| `JWT_SECRET` | HS256 signing key for session tokens |
+| Variable                            | Where used                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                      | Neon pooler connection string (server-side)                                                |
+| `VITE_GOOGLE_CLIENT_ID`             | Google OAuth client ID (exposed to client)                                                 |
+| `JWT_SECRET`                        | HS256 signing key for session tokens                                                       |
+| `FIREBASE_SERVICE_ACCOUNT_KEY`      | Firebase Admin SDK — full service account JSON, stringified (server-side, Wrangler secret) |
+| `VITE_FIREBASE_API_KEY`             | Firebase client config                                                                     |
+| `VITE_FIREBASE_AUTH_DOMAIN`         | Firebase client config                                                                     |
+| `VITE_FIREBASE_PROJECT_ID`          | Firebase client config                                                                     |
+| `VITE_FIREBASE_STORAGE_BUCKET`      | Firebase client config                                                                     |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase client config                                                                     |
+| `VITE_FIREBASE_APP_ID`              | Firebase client config                                                                     |
+| `VITE_FIREBASE_VAPID_KEY`           | Web push VAPID key for FCM                                                                 |
 
 For Cloudflare deployment, these must be set as GitHub Actions secrets and as Wrangler secrets.
+
+## Chat Feature
+
+Chat is built on **Firebase Firestore** (real-time messages via `onSnapshot`) + **FCM** (push notifications). All message data lives in Firestore, not Neon.
+
+- `src/lib/firebase.ts` — client Firestore + Messaging init
+- `src/lib/firebase-admin.ts` — server-side Admin SDK (lazy singleton, reads `FIREBASE_SERVICE_ACCOUNT_KEY`)
+- `src/server-fns/chat.ts` — server functions: `searchChatUsers`, `generateInviteLink`, `saveFcmToken`, `sendChatNotification`, `getOrCreateDirectConversation`, `createGroupConversation`, `getProfilesByIds`
+- `src/hooks/use-conversations.ts` / `use-messages.ts` — Firestore `onSnapshot` hooks
+- `src/hooks/use-fcm.ts` — registers browser FCM token after Notification permission
+- `src/components/chat/` — `ChatLayout`, `ConversationList`, `MessageThread`, `MessageBubble`, `UserSearchInput`, `NewConversationDialog`, `ChatContext`
+- `public/firebase-messaging-sw.js` — service worker for background push (receives config via `postMessage`)
+- `public/manifest.json` — PWA manifest
+
+**Firestore collections:** `conversations`, `conversations/{id}/messages`, `userFcmTokens`, `platformInvites`
+
+**Workspace scoping:** personal workspace → search all `profiles`; org workspace → search `organizationMemberships` for that org only.
+
+**Before first use:** create a Firebase project, enable Firestore + Cloud Messaging, download a service account key, get the VAPID key, and add all 8 Firebase env vars above.
 
 ## Code Style
 
