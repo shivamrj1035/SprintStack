@@ -10,13 +10,8 @@ OrbitOS is a TanStack Start application built with React, Vite, and Drizzle. By 
 - **Tweak applied**:
   ```typescript
   cloudflare: process.env.VERCEL ? false : undefined,
-  tanstackStart: process.env.VERCEL
-    ? undefined
-    : {
-        server: { entry: "server" },
-      },
   ```
-  This ensures that when Vercel runs the build command, the Cloudflare Vite plugin is bypassed and the server entry point is not overridden with the Cloudflare Worker adapter, allowing the standard TanStack Start (Vinxi/Nitro) engine to build cleanly for Vercel's Serverless environment.
+  This ensures that when Vercel runs the build command, the Cloudflare Vite plugin is bypassed, allowing the standard TanStack Start (Vinxi/Nitro) engine to build for Vercel's Serverless environment.
 
 ---
 
@@ -47,18 +42,13 @@ OrbitOS uses Neon Serverless Postgres with Drizzle ORM.
 3. **Configure Environment Variables**:
    Add the following environment variables in the project settings:
 
-   | Variable Name            | Description / Value                                                  |
-   | ------------------------ | -------------------------------------------------------------------- |
-   | `DATABASE_URL`           | Neon Postgres Connection String (e.g., `postgresql://...`)           |
-   | `VITE_GOOGLE_CLIENT_ID`  | Google OAuth 2.0 Client ID (from Google Cloud Console)              |
-   | `JWT_SECRET`             | Secure random string for signing session tokens                     |
+   | Variable Name                | Description / Value                                        |
+   | ---------------------------- | ---------------------------------------------------------- |
+   | `DATABASE_URL`               | Neon Postgres Connection String (e.g., `postgresql://...`) |
+   | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk Publishable Key (from Clerk dashboard)               |
+   | `CLERK_SECRET_KEY`           | Clerk Secret Key (from Clerk dashboard)                    |
+   | `CLERK_SIGN_IN_URL`          | `/login`                                                   |
+   | `CLERK_SIGN_UP_URL`          | `/login`                                                   |
 
-4. **Whitelist Production Domain in Google Cloud Console**:
-   - Once your project has built and you receive your Vercel deployment domain (e.g., `https://orbitos-app.vercel.app`), go back to your **Google Cloud Console**.
-   - Navigate to **APIs & Services** > **Credentials**.
-   - Edit your Web OAuth Client ID.
-   - Under **Authorized JavaScript origins**, add your Vercel URL (e.g., `https://orbitos-app.vercel.app`).
-   - Click **Save**.
-
-5. **Deploy**:
+4. **Deploy**:
    - Click **Deploy**. Vercel will compile the client assets, build the SSR server entry, and deploy the application as Serverless/Edge functions.
