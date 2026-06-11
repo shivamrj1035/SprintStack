@@ -4,6 +4,7 @@ import { Loader2, Chrome, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { loginWithGoogle } from "@/lib/auth-server";
+import { useForceLightMode } from "@/hooks/use-force-light-mode";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
@@ -42,24 +43,26 @@ function WelcomeSvg({ className }: { className?: string }) {
 }
 
 function LoginPage() {
+  useForceLightMode();
   const { refetchSession, session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const [sdkLoading, setSdkLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
 
+  // Redirect if already signed in
   useEffect(() => {
-    if (session) {
-      navigate({ to: "/dashboard" });
-      return;
-    }
+    if (session) navigate({ to: "/dashboard" });
+  }, [session, navigate]);
 
+  // Effect 1: Initialize the Google SDK (sets sdkLoading=false when ready).
+  // Does NOT call renderButton here — the ref div isn't in the DOM yet because
+  // React hasn't re-rendered with sdkLoading=false. renderButton runs in Effect 2.
+  useEffect(() => {
     let isMounted = true;
 
     const initGoogle = () => {
       if (!window.google || !isMounted) return;
-      setSdkLoading(false);
-
       try {
         window.google.accounts.id.initialize({
           client_id:
@@ -85,16 +88,7 @@ function LoginPage() {
             }
           },
         });
-
-        if (googleBtnRef.current) {
-          window.google.accounts.id.renderButton(googleBtnRef.current, {
-            theme: "filled_blue",
-            size: "large",
-            width: 300,
-            text: "signin_with",
-            shape: "pill",
-          });
-        }
+        setSdkLoading(false);
       } catch (err) {
         console.error("Google SDK Initialization failed:", err);
       }
@@ -118,12 +112,25 @@ function LoginPage() {
     return () => {
       isMounted = false;
     };
-  }, [session, navigate, refetchSession]);
+  }, [navigate, refetchSession]);
+
+  // Effect 2: Render the button after React has re-rendered with sdkLoading=false,
+  // guaranteeing googleBtnRef.current is the mounted DOM node.
+  useEffect(() => {
+    if (sdkLoading || !googleBtnRef.current || !window.google) return;
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: "filled_blue",
+      size: "large",
+      width: 300,
+      text: "signin_with",
+      shape: "pill",
+    });
+  }, [sdkLoading]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       {/* Ambient glows */}
-      <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.07] dark:opacity-[0.14]" />
+      <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.07]" />
       <div className="pointer-events-none absolute top-0 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-gradient-to-b from-primary/15 to-transparent blur-[130px]" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-[350px] w-[350px] rounded-full bg-primary/5 blur-[100px]" />
 
@@ -147,9 +154,9 @@ function LoginPage() {
         </Link>
 
         {/* Card */}
-        <div className="w-full overflow-hidden rounded-2xl border border-border/50 bg-card/80 shadow-2xl shadow-black/20 backdrop-blur-xl dark:border-white/[0.06] dark:bg-surface/60">
+        <div className="w-full overflow-hidden rounded-2xl border border-border/50 bg-card/80 shadow-2xl shadow-black/20 backdrop-blur-xl">
           {/* Animated signature banner */}
-          <div className="relative flex items-center justify-center border-b border-border/40 bg-gradient-to-b from-primary/5 to-transparent px-6 py-5 dark:from-primary/8">
+          <div className="relative flex items-center justify-center border-b border-border/40 bg-gradient-to-b from-primary/5 to-transparent px-6 py-5">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(109,40,217,0.12),transparent_70%)]" />
             <WelcomeSvg className="relative h-10 w-full max-w-[280px] text-primary opacity-80" />
           </div>
@@ -193,7 +200,7 @@ function LoginPage() {
             </div>
 
             {/* Trust indicators */}
-            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-3.5 py-2.5 dark:border-white/[0.04] dark:bg-white/[0.02]">
+            <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-3.5 py-2.5">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
               <p className="text-[10px] text-muted-foreground leading-snug">
                 End-to-end encrypted · Your data stays private

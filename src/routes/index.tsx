@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Command, Layers, Timer, Zap, Sun, Moon } from "lucide-react";
+import { ArrowRight, Command, Layers, Timer, Zap } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useTheme } from "@/hooks/use-theme";
+import { useForceLightMode } from "@/hooks/use-force-light-mode";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/")({
@@ -12,9 +12,9 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
+  useForceLightMode();
   const { session, loading } = useAuth();
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!loading && session) navigate({ to: "/dashboard" });
@@ -23,7 +23,7 @@ function Landing() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-background transition-colors duration-300">
       {/* Premium ambient glows */}
-      <div className="absolute inset-0 grid-bg opacity-[0.06] dark:opacity-[0.12] pointer-events-none" />
+      <div className="absolute inset-0 grid-bg opacity-[0.06] pointer-events-none" />
       <div className="absolute top-[-10%] left-[50%] -translate-x-1/2 h-[600px] w-[1000px] rounded-full bg-gradient-to-b from-primary/10 to-transparent blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-primary/5 to-transparent blur-[120px] pointer-events-none" />
 
@@ -36,19 +36,6 @@ function Landing() {
           <span className="font-display text-base font-bold tracking-tight">SprintStack</span>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground shrink-0"
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4 text-amber-500 animate-pulse" />
-            ) : (
-              <Moon className="h-4 w-4 text-indigo-500" />
-            )}
-          </Button>
           <Link to="/login">
             <Button variant="ghost" size="sm" className="text-xs h-8">
               Sign in
@@ -84,7 +71,7 @@ function Landing() {
           <h1 className="mt-8 text-5xl md:text-7xl font-display font-extrabold tracking-tight leading-[1.05] text-foreground">
             The execution OS
             <br />
-            <span className="bg-gradient-to-r from-primary via-indigo-500 to-chart-4 bg-clip-text text-transparent drop-shadow-sm dark:via-indigo-400">
+            <span className="bg-gradient-to-r from-primary via-indigo-500 to-chart-4 bg-clip-text text-transparent drop-shadow-sm">
               for tech teams.
             </span>
           </h1>

@@ -14,7 +14,9 @@ let app: AppModule["default"] | null = null;
 async function getApp(): Promise<AppModule["default"]> {
   if (!app) {
     // String-literal import so @vercel/nft can trace the file and its deps.
-    const mod = (await import("../dist/server/server.js")) as unknown as AppModule;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - dist/server/index.js is dynamically built and may not exist yet or lack declarations
+    const mod = (await import("../dist/server/index.js")) as unknown as AppModule;
     app = mod.default;
   }
   return app;
@@ -22,12 +24,9 @@ async function getApp(): Promise<AppModule["default"]> {
 
 function buildWebRequest(req: IncomingMessage): Promise<Request> {
   return new Promise((resolve, reject) => {
-    const proto =
-      (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
+    const proto = (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
     const host =
-      (req.headers["x-forwarded-host"] as string | undefined) ??
-      req.headers.host ??
-      "localhost";
+      (req.headers["x-forwarded-host"] as string | undefined) ?? req.headers.host ?? "localhost";
     const url = `${proto}://${host}${req.url ?? "/"}`;
 
     const headers = new Headers();
@@ -45,9 +44,7 @@ function buildWebRequest(req: IncomingMessage): Promise<Request> {
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       const body = Buffer.concat(chunks);
-      resolve(
-        new Request(url, { method: req.method!, headers, body: body.length ? body : null }),
-      );
+      resolve(new Request(url, { method: req.method!, headers, body: body.length ? body : null }));
     });
     req.on("error", reject);
   });
@@ -60,7 +57,9 @@ async function sendWebResponse(webRes: Response, nodeRes: ServerResponse): Promi
   if (webRes.body) {
     await new Promise<void>((resolve, reject) => {
       // Readable.fromWeb available in Node.js 17+ (Vercel uses 18+).
-      const readable = Readable.fromWeb(webRes.body as ReadableStream);
+      const readable = Readable.fromWeb(
+        webRes.body as unknown as import("stream/web").ReadableStream,
+      );
       readable.pipe(nodeRes);
       readable.on("error", reject);
       nodeRes.on("finish", resolve);
