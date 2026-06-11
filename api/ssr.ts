@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 
-// dist/server/index.js is produced by `npm run build` (vite build with VERCEL=1).
-// It exports the TanStack Start Web Fetch handler from src/server.ts.
+// dist/server/server.js is produced by `npm run build` on Vercel (VERCEL=1 disables
+// the Cloudflare plugin so TanStack Start / Nitro outputs a standard Web Fetch handler).
 type AppModule = {
   default: {
     fetch(req: Request, env: unknown, ctx: unknown): Promise<Response>;
@@ -14,7 +14,7 @@ let app: AppModule["default"] | null = null;
 async function getApp(): Promise<AppModule["default"]> {
   if (!app) {
     // String-literal import so @vercel/nft can trace the file and its deps.
-    const mod = (await import("../dist/server/index.js")) as unknown as AppModule;
+    const mod = (await import("../dist/server/server.js")) as unknown as AppModule;
     app = mod.default;
   }
   return app;
