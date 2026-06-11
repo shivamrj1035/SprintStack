@@ -5,9 +5,6 @@
   "functions": {
     "api/ssr.ts": {
       "includeFiles": "dist/server/**/*"
-    },
-    "api/ssr.js": {
-      "includeFiles": "dist/server/**/*"
     }
   },
   "rewrites": [
