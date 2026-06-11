@@ -4,7 +4,10 @@
   "framework": null,
   "functions": {
     "api/ssr.ts": {
-      "includeFiles": "dist/server/**"
+      "includeFiles": "dist/server/**/*"
+    },
+    "api/ssr.js": {
+      "includeFiles": "dist/server/**/*"
     }
   },
   "rewrites": [
