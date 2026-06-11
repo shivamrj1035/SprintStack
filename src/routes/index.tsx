@@ -27,32 +27,34 @@ function Landing() {
       <div className="absolute top-[-10%] left-[50%] -translate-x-1/2 h-[600px] w-[1000px] rounded-full bg-gradient-to-b from-primary/10 to-transparent blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-primary/5 to-transparent blur-[120px] pointer-events-none" />
 
-      {/* Floating glassmorphic header */}
-      <header className="sticky top-0 z-50 w-full glass border-b border-border/40 px-6 py-3.5 flex items-center justify-between transition-all duration-300">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_rgba(37,99,235,0.4)]">
-            <Layers className="h-4.5 w-4.5" />
+      {/* Floating glassmorphic header — pt-safe for iOS notch in PWA mode */}
+      <header className="sticky top-0 z-50 w-full glass border-b border-border/40 landing-header-safe">
+        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+              <Layers className="h-4 w-4" />
+            </div>
+            <span className="font-display text-base font-bold tracking-tight">SprintStack</span>
           </div>
-          <span className="font-display text-base font-bold tracking-tight">SprintStack</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link to="/login">
-            <Button variant="ghost" size="sm" className="text-xs h-8">
-              Sign in
-            </Button>
-          </Link>
-          <Link to="/login">
-            <Button
-              size="sm"
-              className="text-xs h-8 font-semibold shadow-md shadow-primary/10 hover:shadow-primary/25 transition-all"
-            >
-              Get started <ArrowRight className="ml-1 h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link to="/login">
+              <Button variant="ghost" size="sm" className="text-xs h-8 px-3">
+                Sign in
+              </Button>
+            </Link>
+            <Link to="/login">
+              <Button
+                size="sm"
+                className="text-xs h-8 px-3 font-semibold shadow-md shadow-primary/10 hover:shadow-primary/25 transition-all"
+              >
+                Get started <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-5xl px-6 pt-28 pb-32">
+      <main className="relative z-10 mx-auto max-w-5xl px-4 md:px-6 pt-16 md:pt-24 pb-24 md:pb-32">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -68,7 +70,7 @@ function Landing() {
           </div>
 
           {/* Hero Headings */}
-          <h1 className="mt-8 text-5xl md:text-7xl font-display font-extrabold tracking-tight leading-[1.05] text-foreground">
+          <h1 className="mt-6 md:mt-8 text-4xl sm:text-5xl md:text-7xl font-display font-extrabold tracking-tight leading-[1.05] text-foreground">
             The execution OS
             <br />
             <span className="bg-gradient-to-r from-primary via-indigo-500 to-chart-4 bg-clip-text text-transparent drop-shadow-sm">
@@ -76,17 +78,17 @@ function Landing() {
             </span>
           </h1>
 
-          <p className="mt-6 max-w-xl text-base md:text-lg text-muted-foreground font-medium leading-relaxed">
+          <p className="mt-4 md:mt-6 max-w-xl text-sm md:text-lg text-muted-foreground font-medium leading-relaxed">
             Dense, keyboard-first, dashboard-driven. Plan sprints, ship tasks, log time — all
             without clicking through twenty pages.
           </p>
 
           {/* Action Buttons */}
-          <div className="mt-10 flex flex-wrap gap-4">
+          <div className="mt-8 md:mt-10 flex flex-col sm:flex-row flex-wrap gap-3 md:gap-4">
             <Link to="/login">
               <Button
                 size="lg"
-                className="font-semibold text-sm px-6 h-12 shadow-lg shadow-primary/15 hover:shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5"
+                className="w-full sm:w-auto font-semibold text-sm px-6 h-12 shadow-lg shadow-primary/15 hover:shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5"
               >
                 Open SprintStack <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -94,7 +96,7 @@ function Landing() {
             <Button
               size="lg"
               variant="outline"
-              className="font-mono text-xs px-6 h-12 border-border/80 hover:bg-surface-2/50 hover:-translate-y-0.5 transition-all duration-300"
+              className="w-full sm:w-auto font-mono text-xs px-6 h-12 border-border/80 hover:bg-surface-2/50 hover:-translate-y-0.5 transition-all duration-300"
             >
               <Command className="mr-2.5 h-4 w-4 text-primary" /> Press ⌘K anywhere
             </Button>
@@ -103,7 +105,7 @@ function Landing() {
 
         {/* Dynamic Card Feature Grid */}
         <motion.div
-          className="mt-28 grid grid-cols-1 gap-5 md:grid-cols-3"
+          className="mt-16 md:mt-28 grid grid-cols-1 gap-4 md:gap-5 sm:grid-cols-3"
           initial="hidden"
           animate="visible"
           variants={{
@@ -144,7 +146,7 @@ function Landing() {
               }}
               transition={{ type: "spring", stiffness: 100, damping: 15 }}
               whileHover={{ y: -5, scale: 1.02 }}
-              className="group relative overflow-hidden rounded-xl border border-border/70 bg-surface/50 p-7 transition-colors duration-300 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 backdrop-blur-sm"
+              className="group relative overflow-hidden rounded-xl border border-border/70 bg-surface/50 p-5 md:p-7 transition-colors duration-300 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 backdrop-blur-sm cursor-pointer"
             >
               {/* Highlight Background Glow */}
               <div

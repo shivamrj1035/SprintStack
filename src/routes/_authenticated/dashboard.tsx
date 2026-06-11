@@ -370,7 +370,7 @@ function DashboardPage() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-5 py-3.5 text-xs hover:bg-surface-2/45 hover:pl-6 transition-all duration-200"
+                    className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1fr_auto_auto] items-center gap-2 md:gap-3 px-4 md:px-5 py-3 md:py-3.5 text-xs hover:bg-surface-2/45 transition-all duration-200"
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${sm.dot} shadow-[0_0_8px_currentColor]`}
@@ -386,7 +386,7 @@ function DashboardPage() {
                     >
                       {pm.label}
                     </span>
-                    <span className="text-[10px] text-muted-foreground font-semibold">
+                    <span className="hidden md:block text-[10px] text-muted-foreground font-semibold">
                       {t.due_date ? format(new Date(t.due_date), "MMM d") : "—"}
                     </span>
                   </motion.li>

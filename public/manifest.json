@@ -1,18 +1,39 @@
 {
   "name": "SprintStack",
   "short_name": "SprintStack",
-  "description": "Execution OS for tech teams",
-  "start_url": "/",
+  "description": "Execution OS for tech teams — tasks, sprints & timesheets",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3B82F6",
-  "orientation": "portrait-primary",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#212831",
+  "theme_color": "#212831",
+  "orientation": "any",
+  "categories": ["productivity", "business", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/Loading.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View your dashboard"
+    },
+    {
+      "name": "Tasks",
+      "url": "/tasks",
+      "description": "Manage your tasks"
+    },
+    {
+      "name": "Chat",
+      "url": "/chat",
+      "description": "Open chat"
     }
   ]
 }

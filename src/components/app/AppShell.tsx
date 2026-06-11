@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -57,14 +57,12 @@ const OVERVIEW_NAV = [
   { to: "/chat", label: "Chat", icon: MessageSquare },
 ] as const;
 
-// Shown when activeOrg.kind === "organization"
 const ORG_WORK_NAV = [
   { to: "/tasks", label: "Tasks", icon: ListChecks },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/timesheets", label: "Timesheets", icon: Timer },
 ] as const;
 
-// Shown when activeOrg.kind === "personal"
 const PERSONAL_NAV = [
   { to: "/todos", label: "To-dos", icon: StickyNote },
   { to: "/links", label: "Links & Docs", icon: Link2 },
@@ -148,6 +146,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }
 
+  // Mobile bottom nav items — 4 primary items, then "More" opens the sheet
+  const mobileNavItems = isPersonalWorkspace
+    ? ([
+        { to: "/dashboard", label: "Home", icon: LayoutDashboard },
+        { to: "/todos", label: "Todos", icon: StickyNote },
+        { to: "/chat", label: "Chat", icon: MessageSquare },
+        { to: "/links", label: "Links", icon: Link2 },
+      ] as const)
+    : ([
+        { to: "/dashboard", label: "Home", icon: LayoutDashboard },
+        { to: "/tasks", label: "Tasks", icon: ListChecks },
+        { to: "/chat", label: "Chat", icon: MessageSquare },
+        { to: "/projects", label: "Projects", icon: FolderKanban },
+      ] as const);
+
   const sidebarContent = (onNavigate?: () => void) => (
     <>
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border/60 bg-sidebar/40 backdrop-blur-md px-4">
@@ -217,7 +230,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="mt-4 flex-1 overflow-y-auto px-2 space-y-4">
+      <div className="mt-4 flex-1 overflow-y-auto px-2 space-y-4 scroll-touch">
         {/* Section 1: Overview */}
         <div className="space-y-0.5">
           <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
@@ -230,7 +243,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
-                className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                className={`group relative flex items-center gap-2 rounded-md px-2 py-2 md:py-1.5 text-[13px] transition-colors duration-200 touch-target ${
                   active
                     ? "text-sidebar-accent-foreground font-medium"
                     : "text-muted-foreground hover:text-sidebar-accent-foreground"
@@ -266,7 +279,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </div>
 
-        {/* Section 2: Workspace Work (Only shown if in Team/Organization workspace) */}
+        {/* Section 2: Workspace Work */}
         {!isPersonalWorkspace && (
           <div className="space-y-0.5">
             <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
@@ -279,7 +292,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
-                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-2 md:py-1.5 text-[13px] transition-colors duration-200 touch-target ${
                     active
                       ? "text-sidebar-accent-foreground font-medium"
                       : "text-muted-foreground hover:text-sidebar-accent-foreground"
@@ -311,7 +324,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        {/* Section 3: Personal Section (Always shown) */}
+        {/* Section 3: Personal */}
         <div className="space-y-0.5">
           <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
             Personal
@@ -323,7 +336,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
-                className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                className={`group relative flex items-center gap-2 rounded-md px-2 py-2 md:py-1.5 text-[13px] transition-colors duration-200 touch-target ${
                   active
                     ? "text-sidebar-accent-foreground font-medium"
                     : "text-muted-foreground hover:text-sidebar-accent-foreground"
@@ -354,7 +367,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </div>
 
-        {/* Section 3: Super Admin Tools (Only show if Super Admin) */}
+        {/* Super Admin Tools */}
         {isSuperAdmin && (
           <div className="space-y-0.5">
             <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
@@ -367,7 +380,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
-                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-2 md:py-1.5 text-[13px] transition-colors duration-200 touch-target ${
                     active
                       ? "text-sidebar-accent-foreground font-medium"
                       : "text-muted-foreground hover:text-sidebar-accent-foreground"
@@ -399,7 +412,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        {/* Section 4: Admin Actions (Only show if Admin/Manager role and NOT Super Admin) */}
+        {/* Administration */}
         {!isSuperAdmin && (role === "admin" || role === "manager") && (
           <div className="space-y-0.5">
             <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
@@ -412,7 +425,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   onClick={onNavigate}
-                  className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-200 ${
+                  className={`group relative flex items-center gap-2 rounded-md px-2 py-2 md:py-1.5 text-[13px] transition-colors duration-200 touch-target ${
                     active
                       ? "text-sidebar-accent-foreground font-medium"
                       : "text-muted-foreground hover:text-sidebar-accent-foreground"
@@ -460,118 +473,214 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div
-      id="app-shell-container"
-      className="flex h-dvh w-full bg-background text-foreground origin-top"
-    >
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 overflow-hidden border-r border-border bg-sidebar md:flex md:flex-col">
-        {sidebarContent()}
-      </aside>
+    <>
+      {/* Main app shell */}
+      <div
+        id="app-shell-container"
+        className="flex h-dvh w-full bg-background text-foreground origin-top"
+      >
+        {/* Desktop sidebar */}
+        <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 overflow-hidden border-r border-border bg-sidebar md:flex md:flex-col">
+          {sidebarContent()}
+        </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 items-center justify-between border-b border-border px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-2 text-xs">
-            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="mr-1 h-8 w-8 md:hidden">
-                  <Menu className="h-4 w-4" />
-                  <span className="sr-only">Open sidebar</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent
-                side="left"
-                className="flex h-dvh w-72 max-w-[85vw] flex-col overflow-hidden border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Header */}
+          <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 px-4 md:px-6 bg-sidebar/30 backdrop-blur-sm">
+            {/* Mobile: app icon + current page name */}
+            <div className="flex items-center gap-2.5 md:hidden">
+              <div
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm"
+                style={{ background: primaryOrganization?.theme_color ?? undefined }}
               >
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-                {sidebarContent(() => setMobileSidebarOpen(false))}
-              </SheetContent>
-            </Sheet>
-            <span className="text-muted-foreground">SprintStack</span>
-            {primaryOrganization && (
-              <>
-                <span className="text-muted-foreground/50">/</span>
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: primaryOrganization.theme_color }}
-                />
-                <span className="min-w-0 truncate text-muted-foreground">
-                  {primaryOrganization.name}
-                </span>
-              </>
-            )}
-            <span className="text-muted-foreground/50">/</span>
-            <span className="min-w-0 truncate font-medium">
-              {visibleNav.find((n) => path.startsWith(n.to))?.label ?? "Home"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <UserMenu
-                compact
-                name={name}
-                email={profile?.email ?? user?.primaryEmailAddress?.emailAddress ?? ""}
-                role={displayRole}
-                avatarUrl={profile?.avatar_url ?? null}
-                initials={initials}
-                onEditProfile={() => setProfileOpen(true)}
-                onSignOut={() => signOut()}
-              />
-            </div>
-            <motion.div
-              whileTap={{ scale: 0.85 }}
-              whileHover={{ rotate: 15 }}
-              transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
-                title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-              >
-                {theme === "dark" ? (
-                  <Sun className="h-3.5 w-3.5 text-amber-500" />
+                {primaryOrganization?.logo_url ? (
+                  <img
+                    src={primaryOrganization.logo_url}
+                    alt=""
+                    className="h-full w-full rounded-lg object-cover"
+                  />
                 ) : (
-                  <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                  <Layers className="h-3.5 w-3.5" />
                 )}
-              </Button>
-            </motion.div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setPaletteOpen(true)}
-              className="hidden md:flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-all hover:bg-surface-2 cursor-pointer h-8 w-44 shadow-xs"
-            >
-              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-              <span className="min-w-0 flex-1 truncate">Search...</span>
-              <div className="flex items-center gap-0.5 shrink-0 select-none">
-                <span className="kbd text-[9px] px-1 py-0.5 font-mono">⌘K</span>
-                <span className="text-[9px] text-muted-foreground/50">/</span>
-                <span className="kbd text-[9px] px-1 py-0.5 font-mono">Ctrl K</span>
               </div>
-            </motion.button>
-          </div>
-        </header>
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={path}
-              initial={{ opacity: 0, scale: 0.985, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.985, y: -8 }}
-              transition={{
-                duration: 0.28,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="h-full w-full origin-center"
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+              <span className="font-display text-sm font-semibold tracking-tight truncate max-w-[160px]">
+                {visibleNav.find((n) => path.startsWith(n.to))?.label ?? "SprintStack"}
+              </span>
+            </div>
+
+            {/* Desktop: breadcrumb */}
+            <div className="hidden md:flex min-w-0 items-center gap-2 text-xs">
+              <span className="text-muted-foreground">SprintStack</span>
+              {primaryOrganization && (
+                <>
+                  <span className="text-muted-foreground/50">/</span>
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: primaryOrganization.theme_color }}
+                  />
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {primaryOrganization.name}
+                  </span>
+                </>
+              )}
+              <span className="text-muted-foreground/50">/</span>
+              <span className="min-w-0 truncate font-medium">
+                {visibleNav.find((n) => path.startsWith(n.to))?.label ?? "Home"}
+              </span>
+            </div>
+
+            {/* Right side actions */}
+            <div className="flex items-center gap-1.5">
+              {/* Mobile: compact user menu */}
+              <div className="md:hidden">
+                <UserMenu
+                  compact
+                  name={name}
+                  email={profile?.email ?? user?.primaryEmailAddress?.emailAddress ?? ""}
+                  role={displayRole}
+                  avatarUrl={profile?.avatar_url ?? null}
+                  initials={initials}
+                  onEditProfile={() => setProfileOpen(true)}
+                  onSignOut={() => signOut()}
+                />
+              </div>
+
+              {/* Theme toggle */}
+              <motion.div
+                whileTap={{ scale: 0.85 }}
+                whileHover={{ rotate: 15 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                  title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                >
+                  {theme === "dark" ? (
+                    <Sun className="h-3.5 w-3.5 text-amber-500" />
+                  ) : (
+                    <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                  )}
+                </Button>
+              </motion.div>
+
+              {/* Search — desktop only */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setPaletteOpen(true)}
+                className="hidden md:flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-all hover:bg-surface-2 cursor-pointer h-8 w-44 shadow-xs"
+              >
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                <span className="min-w-0 flex-1 truncate">Search...</span>
+                <div className="flex items-center gap-0.5 shrink-0 select-none">
+                  <span className="kbd text-[9px] px-1 py-0.5 font-mono">⌘K</span>
+                  <span className="text-[9px] text-muted-foreground/50">/</span>
+                  <span className="kbd text-[9px] px-1 py-0.5 font-mono">Ctrl K</span>
+                </div>
+              </motion.button>
+            </div>
+          </header>
+
+          {/* Main content — content-safe-pad adds bottom padding for mobile bottom nav */}
+          <main className="min-w-0 flex-1 overflow-y-auto content-safe-pad scroll-touch">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={path}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.985, y: -8 }}
+                transition={{
+                  duration: 0.28,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="h-full w-full origin-center"
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
       </div>
 
+      {/* Mobile bottom navigation — outside app-shell-container to avoid scale effect */}
+      <nav
+        className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[60] md:hidden"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="border-t border-border/50 flex h-14 items-stretch px-1">
+          {mobileNavItems.map((item) => {
+            const active = path === item.to || path.startsWith(item.to + "/");
+            const badge = item.to === "/chat" ? totalUnread : 0;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 touch-target select-none"
+                aria-current={active ? "page" : undefined}
+              >
+                {active && (
+                  <motion.div
+                    layoutId="mobile-bottom-active"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-primary"
+                    transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                  />
+                )}
+                <div className="relative">
+                  <item.icon
+                    className={`h-5 w-5 transition-colors duration-200 ${
+                      active ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  />
+                  {badge > 0 && (
+                    <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`text-[9px] font-semibold tracking-tight leading-none transition-colors duration-200 ${
+                    active ? "text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+
+          {/* More button — opens full sidebar sheet */}
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 touch-target select-none cursor-pointer"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[9px] font-semibold tracking-tight leading-none text-muted-foreground">
+              More
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile sidebar sheet — controlled, no SheetTrigger needed */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent
+          side="left"
+          className="flex h-dvh w-72 max-w-[85vw] flex-col overflow-hidden border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+        >
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          {sidebarContent(() => setMobileSidebarOpen(false))}
+        </SheetContent>
+      </Sheet>
+
+      {/* Command palette */}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+
+      {/* Profile dialog */}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent>
           <DialogHeader>
@@ -606,6 +715,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </DialogContent>
       </Dialog>
 
+      {/* Workspace switching fullscreen overlay */}
       <AnimatePresence>
         {switchingWorkspaceName && (
           <motion.div
@@ -615,7 +725,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             transition={{ duration: 0.4 }}
             className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md"
           >
-            {/* Apple Intelligence style ambient glow */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[450px] w-[450px] rounded-full bg-gradient-to-tr from-primary/30 via-purple-500/20 to-chart-4/30 blur-[100px] animate-pulse pointer-events-none" />
 
             <motion.div
@@ -625,7 +734,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               transition={{ type: "spring", stiffness: 200, damping: 25 }}
               className="relative max-w-sm w-[90%] p-8 rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-2xl text-center select-none"
             >
-              {/* Spinning Curvy Graphic */}
               <div className="relative mx-auto h-12 w-12 flex items-center justify-center">
                 <motion.div
                   animate={{ rotate: 360 }}
@@ -651,7 +759,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 
@@ -678,7 +786,7 @@ function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className={`flex items-center gap-2 rounded-md p-1.5 text-left hover:bg-sidebar-accent ${
+          className={`flex items-center gap-2 rounded-md p-1.5 text-left hover:bg-sidebar-accent touch-target cursor-pointer ${
             compact ? "h-8 w-8 justify-center" : "w-full"
           }`}
         >
@@ -710,10 +818,10 @@ function UserMenu({
           <div className="truncate text-[10px] text-muted-foreground">{role}</div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onEditProfile} className="text-xs">
+        <DropdownMenuItem onClick={onEditProfile} className="text-xs cursor-pointer">
           Edit profile
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onSignOut} className="text-xs">
+        <DropdownMenuItem onClick={onSignOut} className="text-xs cursor-pointer">
           <LogOut className="mr-2 h-3 w-3" /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

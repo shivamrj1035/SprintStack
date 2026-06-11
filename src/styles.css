@@ -141,6 +141,9 @@
 
   html {
     scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   html,
@@ -151,6 +154,7 @@
       radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.04) 0%, transparent 45%);
     background-attachment: fixed;
     color: var(--color-foreground);
+    overscroll-behavior: none;
   }
 
   body {
@@ -257,6 +261,65 @@
   }
   .active-scale-down:active {
     transform: scale(0.95);
+  }
+
+  /* Mobile bottom navigation bar */
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: color-mix(in oklab, var(--sidebar) 88%, transparent);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  /* Main content padding to clear bottom nav on mobile */
+  .content-safe-pad {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 768px) {
+    .content-safe-pad {
+      padding-bottom: 0;
+    }
+  }
+
+  /* Safe area padding helpers */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Touch-friendly interactive elements */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Mobile scroll improvements */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Landing page safe area header */
+  .landing-header-safe {
+    padding-top: max(env(safe-area-inset-top, 0px), 0px);
+  }
+
+  /* Floating card with improved mobile contrast */
+  .card-elevated {
+    background: color-mix(in oklab, var(--card) 90%, transparent);
+    border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+    border-radius: var(--radius-xl);
+    box-shadow:
+      0 1px 3px color-mix(in oklab, var(--foreground) 4%, transparent),
+      0 8px 24px -8px color-mix(in oklab, var(--foreground) 8%, transparent);
   }
 }
 

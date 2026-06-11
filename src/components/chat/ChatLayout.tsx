@@ -7,6 +7,8 @@ import { ChatContext } from "./ChatContext";
 import { getProfilesByIds } from "@/server-fns/chat";
 import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { useRouterState, useNavigate } from "@tanstack/react-router";
+import { ChevronLeft } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -16,6 +18,11 @@ export function ChatLayout({ children }: Props) {
   const { session, profile } = useAuth();
   const { activeOrg } = useWorkspace();
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const path = useRouterState().location.pathname;
+  const navigate = useNavigate();
+
+  // Detect if a conversation is actively selected (path = /chat/$id)
+  const hasActiveConversation = path.startsWith("/chat/") && path !== "/chat/";
 
   const isPersonalWorkspace = activeOrg?.kind === "personal";
   const orgFilterId = isPersonalWorkspace ? null : (activeOrg?.id ?? null);
@@ -52,7 +59,16 @@ export function ChatLayout({ children }: Props) {
   return (
     <ChatContext.Provider value={ctx}>
       <div className="h-full w-full flex overflow-hidden">
-        <div className="w-72 lg:w-80 xl:w-96 shrink-0 border-r border-border bg-sidebar/50 flex flex-col h-full">
+        {/* Conversation list panel
+            Mobile: full-width, hidden when a conversation is active
+            Desktop: fixed-width sidebar, always visible */}
+        <div
+          className={`
+            shrink-0 border-r border-border bg-sidebar/50 flex flex-col h-full
+            w-full md:w-72 lg:w-80 xl:w-96
+            ${hasActiveConversation ? "hidden md:flex" : "flex"}
+          `}
+        >
           <ConversationList
             conversations={conversations}
             loading={loading}
@@ -62,7 +78,30 @@ export function ChatLayout({ children }: Props) {
           />
         </div>
 
-        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">{children}</div>
+        {/* Message thread panel
+            Mobile: full-width, hidden when no conversation is active
+            Desktop: flex-1, always visible */}
+        <div
+          className={`
+            flex-1 flex flex-col h-full overflow-hidden min-w-0
+            ${hasActiveConversation ? "flex" : "hidden md:flex"}
+          `}
+        >
+          {/* Mobile back button — shown only when a conversation is active */}
+          {hasActiveConversation && (
+            <div className="md:hidden flex items-center gap-2 border-b border-border/60 px-3 h-11 bg-sidebar/50 shrink-0">
+              <button
+                onClick={() => navigate({ to: "/chat" })}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer touch-target"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="font-medium">Chats</span>
+              </button>
+            </div>
+          )}
+          {children}
+        </div>
 
         <NewConversationDialog
           open={newChatOpen}

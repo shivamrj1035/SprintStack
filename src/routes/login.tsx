@@ -128,7 +128,13 @@ function LoginPage() {
   }, [sdkLoading]);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8"
+      style={{
+        paddingTop: "max(2rem, env(safe-area-inset-top, 0px))",
+        paddingBottom: "max(2rem, env(safe-area-inset-bottom, 0px))",
+      }}
+    >
       {/* Ambient glows */}
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.07]" />
       <div className="pointer-events-none absolute top-0 left-1/2 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-gradient-to-b from-primary/15 to-transparent blur-[130px]" />
