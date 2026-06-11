@@ -16,7 +16,7 @@ async function getApp(): Promise<AppModule["default"]> {
     // String-literal import so @vercel/nft can trace the file and its deps.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore - dist/server/index.js is dynamically built and may not exist yet or lack declarations
-    const mod = (await import("../dist/server/index.js")) as unknown as AppModule;
+    const mod = (await import("../dist/server/server.js")) as unknown as AppModule;
     app = mod.default;
   }
   return app;
