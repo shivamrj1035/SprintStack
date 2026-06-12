@@ -163,18 +163,24 @@ export const sendChatNotification = createServerFn({ method: "POST" })
     const adminDb = getAdminFirestore();
     const adminMsg = getAdminMessaging();
 
+    const otherUserIds = data.toUserIds.filter((id) => id !== actor.userId);
     const tokenDocs = await Promise.all(
-      data.toUserIds
-        .filter((id) => id !== actor.userId)
-        .map((id) => adminDb.collection("userFcmTokens").doc(id).get()),
+      otherUserIds.map((id) => adminDb.collection("userFcmTokens").doc(id).get()),
     );
 
-    const tokens = tokenDocs.flatMap((snap) => (snap.exists ? (snap.data()?.tokens ?? []) : []));
+    // Build flat token list with reverse mapping for stale-token cleanup
+    const tokenEntries: { token: string; userId: string }[] = [];
+    tokenDocs.forEach((snap, i) => {
+      if (snap.exists) {
+        const tokens: string[] = snap.data()?.tokens ?? [];
+        tokens.forEach((token) => tokenEntries.push({ token, userId: otherUserIds[i] }));
+      }
+    });
 
-    if (tokens.length === 0) return { sent: 0 };
+    if (tokenEntries.length === 0) return { sent: 0 };
 
-    await adminMsg.sendEachForMulticast({
-      tokens,
+    const result = await adminMsg.sendEachForMulticast({
+      tokens: tokenEntries.map((e) => e.token),
       notification: {
         title: data.senderName,
         body:
@@ -189,7 +195,37 @@ export const sendChatNotification = createServerFn({ method: "POST" })
       },
     });
 
-    return { sent: tokens.length };
+    // Remove expired/unregistered tokens so future sends stay clean
+    const staleByUser: Record<string, string[]> = {};
+    result.responses.forEach((resp, i) => {
+      if (!resp.success) {
+        const code = (resp.error as { code?: string } | undefined)?.code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          const { userId, token } = tokenEntries[i];
+          (staleByUser[userId] ??= []).push(token);
+        }
+      }
+    });
+
+    if (Object.keys(staleByUser).length > 0) {
+      await Promise.all(
+        Object.entries(staleByUser).map(async ([userId, staleTokens]) => {
+          const ref = adminDb.collection("userFcmTokens").doc(userId);
+          const snap = await ref.get();
+          if (!snap.exists) return;
+          const current: string[] = snap.data()?.tokens ?? [];
+          await ref.update({
+            tokens: current.filter((t) => !staleTokens.includes(t)),
+            updatedAt: new Date(),
+          });
+        }),
+      );
+    }
+
+    return { sent: result.successCount };
   });
 
 // ─── Get or create direct conversation ───────────────────────────────────────

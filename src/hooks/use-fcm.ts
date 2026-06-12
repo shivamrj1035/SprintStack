@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { getToken } from "firebase/messaging";
+import { getToken, onMessage } from "firebase/messaging";
 import { getFirebaseMessaging } from "@/lib/firebase";
 import { saveFcmToken } from "@/server-fns/chat";
 
@@ -13,6 +13,7 @@ const FIREBASE_CONFIG = {
 };
 
 export function useFcm(userId: string | null) {
+  // Register for push and save FCM token
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
@@ -49,5 +50,53 @@ export function useFcm(userId: string | null) {
     };
 
     register();
+  }, [userId]);
+
+  // Show native notification when app is in the foreground
+  useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+
+    const messaging = getFirebaseMessaging();
+    if (!messaging) return;
+
+    const unsub = onMessage(messaging, (payload) => {
+      if (Notification.permission !== "granted") return;
+
+      const conversationId = payload.data?.conversationId;
+      const url = payload.data?.url ?? "/chat";
+
+      // Skip if user is already viewing this conversation
+      if (conversationId && window.location.pathname === `/chat/${conversationId}`) return;
+
+      const title = payload.notification?.title ?? "SprintStack";
+      const body = payload.notification?.body ?? "You have a new message";
+
+      // Use SW to show the notification so it works consistently across browsers
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          reg.showNotification(title, {
+            body,
+            icon: "/Loading.svg",
+            badge: "/Loading.svg",
+            tag: conversationId ?? "chat",
+            data: { url },
+          });
+        })
+        .catch(() => {
+          // Fallback to plain Notification API
+          const n = new Notification(title, {
+            body,
+            icon: "/Loading.svg",
+            tag: conversationId ?? "chat",
+          });
+          n.onclick = () => {
+            n.close();
+            window.focus();
+            window.location.href = url;
+          };
+        });
+    });
+
+    return unsub;
   }, [userId]);
 }

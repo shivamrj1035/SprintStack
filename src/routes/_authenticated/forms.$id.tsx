@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getFormTemplateById, saveFormTemplate } from "@/server-fns/functions";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -159,6 +161,8 @@ function FormBuilderPage() {
   const [activeTab, setActiveTab] = useState<string>("fields");
   const [searchFieldQuery, setSearchFieldQuery] = useState("");
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [mobileRightOpen, setMobileRightOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Tracks which template was loaded into the editor state
   const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
@@ -185,6 +189,13 @@ function FormBuilderPage() {
       setLoadedTemplateId(templateId);
     }
   }, [dbTemplate, templateId, loadedTemplateId]);
+
+  // Auto-open the right panel sheet on mobile when a field or cell is selected
+  useEffect(() => {
+    if (isMobile && (selectedFieldId || selectedCellId)) {
+      setMobileRightOpen(true);
+    }
+  }, [selectedFieldId, selectedCellId, isMobile]);
 
   // Check if there are unsaved client edits compared to DB values
   const hasUnsavedChanges = useMemo(() => {
@@ -374,7 +385,8 @@ function FormBuilderPage() {
   }, [footerCells, selectedCellId]);
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] w-full overflow-hidden text-foreground bg-background">
+    <>
+    <div className="flex h-[calc(100dvh-8.5rem)] md:h-[calc(100dvh-3rem)] w-full overflow-hidden text-foreground bg-background">
       {/* LEFT CANVAS & EDITOR */}
       <Tabs
         value={activeTab}
@@ -382,24 +394,25 @@ function FormBuilderPage() {
         className="flex-1 flex flex-col min-w-0 bg-background border-r border-border"
       >
         {/* Header Breadcrumbs */}
-        <header className="h-12 border-b border-border px-4 flex items-center justify-between shrink-0 bg-sidebar/35">
-          <div className="flex items-center gap-2 min-w-0">
+        <header className="h-12 border-b border-border px-3 md:px-4 flex items-center justify-between shrink-0 bg-sidebar/35">
+          <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
             <Button
               size="icon"
               variant="ghost"
               asChild
-              className="h-7 w-7 text-muted-foreground hover:text-foreground mr-1"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
             >
               <Link to="/forms">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <span className="text-xs text-muted-foreground">Form Templates</span>
-            <span className="text-xs text-muted-foreground/50">/</span>
-            <span className="text-xs font-semibold text-foreground truncate">{name}</span>
-
+            <span className="hidden sm:inline text-xs text-muted-foreground">Form Templates</span>
+            <span className="hidden sm:inline text-xs text-muted-foreground/50">/</span>
+            <span className="max-w-[120px] truncate text-xs font-semibold text-foreground md:max-w-none">
+              {name}
+            </span>
             <Badge
-              className={`text-[9px] font-mono border-none uppercase py-0.5 px-2 shrink-0 ${
+              className={`shrink-0 border-none px-2 py-0.5 font-mono text-[9px] uppercase ${
                 status === "published"
                   ? "bg-emerald-500/15 text-emerald-400"
                   : status === "archived"
@@ -409,15 +422,24 @@ function FormBuilderPage() {
             >
               {status}
             </Badge>
-            <span className="text-[9px] font-mono text-muted-foreground bg-surface border border-border/80 rounded px-1 shrink-0">
+            <span className="hidden sm:inline shrink-0 rounded border border-border/80 bg-surface px-1 font-mono text-[9px] text-muted-foreground">
               {version}
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface border border-border/70">
+            <span className="hidden md:flex items-center gap-1.5 rounded border border-border/70 bg-surface px-2.5 py-1 font-mono text-[10px] text-muted-foreground">
               <Check className="h-3.5 w-3.5 text-emerald-500" /> Auto-saved to drafts
             </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMobileRightOpen(true)}
+              className="md:hidden h-7 gap-1 px-2 text-[11px]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {selectedFieldId ? "Config" : selectedCellId ? "Cell" : "Add Field"}
+            </Button>
           </div>
         </header>
 
@@ -927,26 +949,26 @@ function FormBuilderPage() {
         </TabsContent>
 
         {/* BOTTOM ACTION BAR */}
-        <footer className="h-12 border-t border-border px-4 flex items-center justify-between shrink-0 bg-sidebar/20">
-          <div className="flex items-center gap-2">
+        <footer className="shrink-0 border-t border-border bg-sidebar/20 px-3 md:px-4 py-2 md:h-12 flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="hidden md:flex items-center gap-2">
             {hasUnsavedChanges ? (
-              <span className="text-[10px] font-semibold text-amber-500 flex items-center gap-1">
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-500">
                 <AlertTriangle className="h-3.5 w-3.5" /> Unsaved changes in template builder
               </span>
             ) : (
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Check className="h-3.5 w-3.5 text-emerald-500" /> All edits saved
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-end">
             <Button
               size="sm"
               variant="ghost"
               onClick={handleRevert}
               disabled={!hasUnsavedChanges || saveMutation.isPending}
-              className="text-xs h-8"
+              className="h-8 text-xs"
             >
               Cancel
             </Button>
@@ -955,7 +977,7 @@ function FormBuilderPage() {
               variant="outline"
               onClick={() => saveMutation.mutate({ status: "draft" })}
               disabled={!hasUnsavedChanges || saveMutation.isPending}
-              className="text-xs h-8"
+              className="h-8 text-xs"
             >
               Save Draft
             </Button>
@@ -963,17 +985,18 @@ function FormBuilderPage() {
               size="sm"
               onClick={() => saveMutation.mutate({ status: "published", versionBump: true })}
               disabled={saveMutation.isPending}
-              className="text-xs h-8 bg-primary hover:bg-primary/90 text-white font-medium"
+              className="h-8 bg-primary text-xs font-medium text-white hover:bg-primary/90"
             >
-              {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-              Publish (New Version)
+              {saveMutation.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              <span className="hidden sm:inline">Publish (New Version)</span>
+              <span className="sm:hidden">Publish</span>
             </Button>
           </div>
         </footer>
       </Tabs>
 
-      {/* RIGHT PALETTE SIDEBAR */}
-      <aside className="w-80 border-l border-border bg-sidebar flex flex-col shrink-0">
+      {/* RIGHT PALETTE SIDEBAR — desktop only */}
+      <aside className="hidden md:flex w-80 border-l border-border bg-sidebar flex-col shrink-0">
         {/* If a cell is selected, show cell settings, else if a field is selected, show field settings, else show Palette */}
         {activeCell ? (
           <div className="flex flex-col h-full">
@@ -1290,6 +1313,231 @@ function FormBuilderPage() {
         )}
       </aside>
     </div>
+
+    {/* ── Mobile Right Panel Sheet ── */}
+    <Sheet open={mobileRightOpen} onOpenChange={setMobileRightOpen}>
+      <SheetContent
+        side="bottom"
+        className="flex h-[80vh] flex-col rounded-t-2xl border-border/60 bg-sidebar p-0"
+      >
+        <SheetTitle className="sr-only">Form Builder Panel</SheetTitle>
+        {selectedCellId ? (
+          <div className="flex flex-col h-full">
+            <div className="p-3.5 border-b border-border flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
+                <Settings className="h-4 w-4" /> Grid Cell settings
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setSelectedCellId(null)}
+                className="h-6 w-6 text-muted-foreground"
+              >
+                <XIcon className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                <div className="text-xs font-semibold text-foreground">Configure Approval Grid Cell:</div>
+                {activeCell && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="m-cell-label" className="text-[11px] text-muted-foreground">Cell Header Label</Label>
+                      <Input
+                        id="m-cell-label"
+                        value={activeCell.label}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFooterCells((prev) => prev.map((c) => (c.id === activeCell.id ? { ...c, label: v } : c)));
+                        }}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="m-cell-name" className="text-[11px] text-muted-foreground">Signee Name Placeholder</Label>
+                      <Input
+                        id="m-cell-name"
+                        value={activeCell.name}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFooterCells((prev) => prev.map((c) => (c.id === activeCell.id ? { ...c, name: v } : c)));
+                        }}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="m-cell-date" className="text-[11px] text-muted-foreground">Signature Date Placeholder</Label>
+                      <Input
+                        id="m-cell-date"
+                        value={activeCell.date}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFooterCells((prev) => prev.map((c) => (c.id === activeCell.id ? { ...c, date: v } : c)));
+                        }}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        ) : selectedFieldId && activeField ? (
+          <div className="flex flex-col h-full">
+            <div className="p-3.5 border-b border-border flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
+                <Settings className="h-4 w-4" /> Field Attributes
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setSelectedFieldId(null)}
+                className="h-6 w-6 text-muted-foreground"
+              >
+                <XIcon className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <span className="text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-surface border border-border">
+                    {activeField.type}
+                  </span>
+                  <div className="text-xs font-semibold text-foreground mt-2">
+                    Configuring Field: {activeField.label}
+                  </div>
+                </div>
+                <div className="space-y-1.5 pt-2">
+                  <Label htmlFor="m-field-label" className="text-[11px] text-muted-foreground">Field Label</Label>
+                  <Input
+                    id="m-field-label"
+                    value={activeField.label}
+                    onChange={(e) => handleUpdateField(activeField.id, "label", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                {activeField.type !== "section_header" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] text-muted-foreground">Field Width</Label>
+                    <Select
+                      value={activeField.width || "100"}
+                      onValueChange={(val) => handleUpdateField(activeField.id, "width", val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border-border">
+                        <SelectItem value="100" className="text-xs">Full Width (100%)</SelectItem>
+                        <SelectItem value="50" className="text-xs">Half Width (50%)</SelectItem>
+                        <SelectItem value="33" className="text-xs">One-Third (33%)</SelectItem>
+                        <SelectItem value="25" className="text-xs">One-Quarter (25%)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="m-field-placeholder" className="text-[11px] text-muted-foreground">Placeholder Sub-Text</Label>
+                  <Input
+                    id="m-field-placeholder"
+                    value={activeField.placeholder || ""}
+                    onChange={(e) => handleUpdateField(activeField.id, "placeholder", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                {["dropdown", "radio"].includes(activeField.type) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] text-muted-foreground">Options (comma split)</Label>
+                    <Textarea
+                      value={(activeField.options || []).join(", ")}
+                      onChange={(e) => {
+                        const opts = e.target.value.split(",").map((x) => x.trim()).filter(Boolean);
+                        handleUpdateField(activeField.id, "options", opts);
+                      }}
+                      rows={3}
+                      className="text-xs resize-none"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-border/40 pt-4 mt-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-medium">Required Input</Label>
+                    <p className="text-[9px] text-muted-foreground leading-normal">Mandate user response</p>
+                  </div>
+                  <Switch
+                    checked={activeField.required}
+                    onCheckedChange={(checked) => handleUpdateField(activeField.id, "required", checked)}
+                  />
+                </div>
+              </div>
+            </ScrollArea>
+            <div className="p-3 border-t border-border shrink-0 bg-surface-2/10">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  handleRemoveField(activeField.id);
+                  setMobileRightOpen(false);
+                }}
+                className="w-full h-8 text-xs gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete Field
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col h-full">
+            <div className="p-3.5 border-b border-border space-y-2 shrink-0">
+              <span className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
+                <Plus className="h-4 w-4" /> Add Fields
+              </span>
+              <div className="relative">
+                <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={searchFieldQuery}
+                  onChange={(e) => setSearchFieldQuery(e.target.value)}
+                  placeholder="Search fields..."
+                  className="h-8 pl-7 text-xs bg-surface-2/40 border-border/60"
+                />
+              </div>
+            </div>
+            <ScrollArea className="flex-1 p-3">
+              <div className="space-y-4">
+                {[
+                  { label: "Input", palette: PALETTE_INPUT, category: "input" as const },
+                  { label: "Selection", palette: PALETTE_SELECTION, category: "selection" as const },
+                  { label: "Content", palette: PALETTE_CONTENT, category: "content" as const },
+                  { label: "Layout", palette: PALETTE_LAYOUT, category: "layout" as const },
+                ].map(({ label, palette, category }) => (
+                  <div key={label} className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+                      {label}
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {filteredPalette(palette).map((item) => (
+                        <Button
+                          key={item.type}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            handleAddField(item, category);
+                            setMobileRightOpen(false);
+                          }}
+                          className="h-8 justify-start text-[11px] px-2 gap-1.5 border-border/80 hover:border-primary/50 text-foreground transition"
+                        >
+                          <item.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="truncate">{item.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }
 

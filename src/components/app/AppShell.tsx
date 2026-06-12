@@ -213,7 +213,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <SelectTrigger className="h-8 w-full bg-sidebar border-sidebar-border text-[11px] focus:ring-1 focus:ring-primary py-0 px-2 font-medium">
               <SelectValue placeholder="Select Environment" />
             </SelectTrigger>
-            <SelectContent className="bg-sidebar border-sidebar-border text-sidebar-foreground">
+            <SelectContent className="bg-sidebar border-sidebar-border text-sidebar-foreground z-[90]">
               {organizations.map((org) => (
                 <SelectItem key={org.id} value={org.id} className="text-xs cursor-pointer">
                   <span className="flex items-center gap-2">

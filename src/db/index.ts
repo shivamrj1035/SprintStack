@@ -2,9 +2,13 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-let cachedDb: any = null;
+const sqlPlaceholder = neon("http://localhost");
+const dummyDb = drizzle(sqlPlaceholder, { schema });
+type DbType = typeof dummyDb;
 
-function getDb() {
+let cachedDb: DbType | null = null;
+
+function getDb(): DbType {
   if (!cachedDb) {
     const url = process.env.DATABASE_URL || process.env.VITE_DATABASE_URL;
     if (!url) {
@@ -16,8 +20,9 @@ function getDb() {
   return cachedDb;
 }
 
-export const db = new Proxy({} as any, {
+export const db = new Proxy({} as DbType, {
   get(target, prop) {
     return Reflect.get(getDb(), prop);
   },
 });
+
