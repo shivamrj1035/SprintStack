@@ -109,12 +109,19 @@ export async function ensurePersonalWorkspace(actor: CurrentActor) {
 }
 
 export async function getAccessibleOrganizationIds(actor: CurrentActor) {
+  // Always ensure the actor has exactly one personal workspace
+  const personal = await ensurePersonalWorkspace(actor);
+
   if (actor.isSuperAdmin) {
-    const all = await db.select({ id: organizations.id }).from(organizations);
-    return all.map((org) => org.id);
+    // Super admins see their own personal workspace + all org-type workspaces.
+    // Other users' personal workspaces are excluded — they are private to each user.
+    const orgWorkspaces = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.kind, "organization"));
+    return Array.from(new Set([personal.id, ...orgWorkspaces.map((o) => o.id)]));
   }
 
-  const personal = await ensurePersonalWorkspace(actor);
   const memberships = await db
     .select({ organization_id: organizationMemberships.organization_id })
     .from(organizationMemberships)

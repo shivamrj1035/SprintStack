@@ -1,0 +1,27 @@
+---
+Root cause of broken push notifications:
+
+The service worker only initialized Firebase when it received a FIREBASE_SW_CONFIG message from the page. When the browser is backgrounded or closed (very common — user locks phone, switches apps, etc.), no page is running to send that message. The push event arrives, Firebase is never initialized, onBackgroundMessage is never registered, and the notification is silently dropped.
+
+What was changed:
+
+┌────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────────┐
+│                  File                  │                                        Change                                        │
+├────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+│ scripts/generate-firebase-sw-config.js │ New script — reads Firebase config from .dev.vars (local) or process.env (Vercel),   │
+│                                        │ writes public/firebase-sw-config.js                                                  │
+├────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+│ public/firebase-messaging-sw.js        │ Now importScripts('/firebase-sw-config.js') at startup and self-initializes          │
+│                                        │ immediately — background push works without any page open                            │
+├────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+│ package.json                           │ predev + prebuild hooks run the generate script automatically                        │
+├────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────────┤
+│ .gitignore                             │ public/firebase-sw-config.js is gitignored (rebuilt from env vars each time)         │
+└────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────┘
+
+Steps you need to take right now:
+
+1. Clear the old service worker — in Chrome DevTools → Application → Service Workers → click Unregister next to firebase-messaging-sw.js, then reload. This forces the browser to pick up the updated SW code.
+2. Allow notifications when prompted in both the browser tab and the PWA device. On Android for the PWA: System Settings → Apps → OrbitOS → Notifications → Enable.
+3. Verify tokens are saved — after loading both sessions, check Firebase Console → Firestore → userFcmTokens collection. Both user IDs should have documents with a tokens array. If either is missing, getToken() is failing — most likely the VITE_FIREBASE_VAPID_KEY env var is wrong (get it from Firebase Console → Project Settings → Cloud Messaging → Web Push Certificates).
+4. Note for iOS PWA — Apple does not support Web Push in installed PWAs on iOS 15 or earlier. iOS 16.4+ supports it, but the user must have explicitly allowed notifications in iOS Settings → OrbitOS.

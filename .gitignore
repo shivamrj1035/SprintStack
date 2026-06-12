@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Auto-generated Firebase SW config (contains public Firebase client config,
+# rebuilt by predev/prebuild from .dev.vars or Vercel env vars)
+public/firebase-sw-config.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
