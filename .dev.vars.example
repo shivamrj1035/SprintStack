@@ -1,9 +1,15 @@
 # Copy this file to .dev.vars and fill in real values.
-# .dev.vars is gitignored and read by @cloudflare/vite-plugin (Miniflare) during local dev.
-# Vite's .env is NOT used for server-side code — only VITE_* vars are build-time inlined.
+# .dev.vars is gitignored and read by Miniflare (@cloudflare/vite-plugin) during local dev.
+# For Vercel production, set these in the Vercel dashboard → Project Settings → Environment Variables.
+# VITE_* vars are build-time inlined — they must be set in Vercel as well for production builds.
 
 DATABASE_URL=postgresql://user:password@pooler.host/dbname?sslmode=require
 JWT_SECRET=your-jwt-secret-at-least-32-chars
+
+# Comma-separated emails that are granted platform super-admin on login.
+# After the flag is set in the DB you can remove this or leave it to keep it in sync.
+# Example: SUPER_ADMIN_EMAILS=alice@example.com,bob@example.com
+SUPER_ADMIN_EMAILS=
 
 # Paste the entire Firebase service account JSON on ONE line.
 # The private_key newlines must remain as literal \n (two chars), not real newlines.

@@ -43,9 +43,11 @@ function TasksPage() {
   const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-  const activeFilterCount = [filterStatus !== "all", filterPriority !== "all", filterProject !== "all"].filter(
-    Boolean,
-  ).length;
+  const activeFilterCount = [
+    filterStatus !== "all",
+    filterPriority !== "all",
+    filterProject !== "all",
+  ].filter(Boolean).length;
 
   useEffect(() => {
     if (search.new) {
@@ -235,7 +237,9 @@ function TasksPage() {
         ) : (
           <>
             <div className="flex items-center justify-between border-b border-border/40 bg-surface/50 px-3 py-1.5">
-              <span className="font-mono text-[10px] text-muted-foreground">{tasks.length} tasks</span>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {tasks.length} tasks
+              </span>
             </div>
             {tasks.map((t) => {
               const sm = statusMeta[t.status as Status] ?? statusMeta.todo;
@@ -251,14 +255,20 @@ function TasksPage() {
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-mono text-[10px] text-muted-foreground">{t.code}</span>
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${sm.chip}`}>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${sm.chip}`}
+                      >
                         {sm.label}
                       </span>
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pm.chip}`}>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${pm.chip}`}
+                      >
                         {pm.label}
                       </span>
                     </div>
-                    <div className="text-[13px] font-medium text-foreground leading-snug">{t.title}</div>
+                    <div className="text-[13px] font-medium text-foreground leading-snug">
+                      {t.title}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {proj && (
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -285,7 +295,9 @@ function TasksPage() {
                         <div className="h-1 w-20 overflow-hidden rounded-full bg-border">
                           <div className="h-full bg-primary" style={{ width: `${t.progress}%` }} />
                         </div>
-                        <span className="font-mono text-[10px] text-muted-foreground">{t.progress}%</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {t.progress}%
+                        </span>
                       </div>
                     )}
                   </div>

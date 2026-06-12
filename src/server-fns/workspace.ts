@@ -5,9 +5,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import { parseCookies, verifySessionToken } from "@/lib/auth-server";
 import { getAdminFirestore } from "@/lib/firebase-admin";
 
-export const SUPER_ADMIN_EMAIL = "srjtheinfinity1035@gmail.com";
+// Super admins are managed via the `is_super_admin` column on the profiles table.
+// Bootstrap the first super admin by setting SUPER_ADMIN_EMAILS in your environment variables.
 
-export type WorkspaceRole = "super_admin" | "admin" | "manager" | "member";
+export type WorkspaceRole = "super_admin" | "admin" | "member";
 
 export interface CurrentActor {
   userId: string;
@@ -59,7 +60,6 @@ export async function getCurrentActor(): Promise<CurrentActor> {
     claimFirestoreInvites(userId, email).catch(() => {});
   }
 
-  // Check if user is blocked
   const dbProfile = await db.query.profiles.findFirst({
     where: eq(profiles.id, userId),
   });
@@ -73,7 +73,7 @@ export async function getCurrentActor(): Promise<CurrentActor> {
     email,
     name,
     avatarUrl,
-    isSuperAdmin: email?.toLowerCase() === SUPER_ADMIN_EMAIL,
+    isSuperAdmin: dbProfile?.is_super_admin ?? false,
   };
 }
 
@@ -137,7 +137,11 @@ export async function requireWorkspaceRole(
     ),
   });
 
-  if (!membership || !allowed.includes(membership.role)) {
+  // Normalize legacy "manager" DB value to "admin" — manager role is deprecated
+  const effectiveRole =
+    membership?.role === "manager" ? "admin" : (membership?.role as WorkspaceRole | undefined);
+
+  if (!effectiveRole || !allowed.includes(effectiveRole)) {
     throw new Error("Permission denied");
   }
 }

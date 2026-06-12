@@ -14,7 +14,7 @@ export interface Organization {
   created_by: string;
   created_at: string | Date;
   updated_at: string | Date;
-  current_user_role: "super_admin" | "admin" | "manager" | "member";
+  current_user_role: "super_admin" | "admin" | "member";
   can_manage: boolean;
 }
 

@@ -281,13 +281,23 @@ export const loginWithGoogle = createServerFn({ method: "POST" })
         throw new Error("Your account has been blocked by the administrator.");
       }
 
+      // Bootstrap super admin from SUPER_ADMIN_EMAILS env var (comma-separated).
+      // Once the flag is set in DB it persists; the env var just ensures it stays in sync.
+      const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+      if (superAdminEmails.includes(email)) {
+        await db.update(profiles).set({ is_super_admin: true }).where(eq(profiles.id, userId));
+      }
+
       // Ensure personal workspace
       await ensurePersonalWorkspace({
         userId,
         email,
         name,
         avatarUrl,
-        isSuperAdmin: email === "srjtheinfinity1035@gmail.com",
+        isSuperAdmin: superAdminEmails.includes(email) || (userProfile?.is_super_admin ?? false),
       });
 
       // Sign custom session token
@@ -326,7 +336,6 @@ export const getCurrentSession = createServerFn({ method: "GET" }).handler(async
   const session = await verifySessionToken(sessionToken);
   if (!session) return null;
 
-  // Check if user is blocked in the database
   const userProfile = await db.query.profiles.findFirst({
     where: eq(profiles.id, session.userId),
   });
@@ -335,5 +344,5 @@ export const getCurrentSession = createServerFn({ method: "GET" }).handler(async
     return null;
   }
 
-  return session;
+  return { ...session, isSuperAdmin: userProfile.is_super_admin };
 });

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "@/db";
 import {
+  auditLogs,
   customTimesheetForms,
   organizationMemberships,
   organizations,
@@ -23,6 +24,22 @@ import {
 
 const DEFAULT_MODULES = ["projects", "tasks", "timesheets", "dashboard"];
 const workspaceRoleSchema = z.enum(["admin", "member"]);
+
+// ─── Profile ────────────────────────────────────────────────────────────────
+
+export const updateProfile = createServerFn({ method: "POST" })
+  .inputValidator((data: { name: string }) =>
+    z.object({ name: z.string().min(1).max(100) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    await db
+      .update(profiles)
+      .set({ name: data.name.trim(), updated_at: new Date() })
+      .where(eq(profiles.id, actor.userId));
+  });
+
+// ─── Workspace context ───────────────────────────────────────────────────────
 
 export const getWorkspaceContext = createServerFn({ method: "GET" }).handler(async () => {
   const actor = await getCurrentActor();
@@ -58,7 +75,7 @@ export const getWorkspaceContext = createServerFn({ method: "GET" }).handler(asy
         actor.isSuperAdmin ||
         membership?.role === "admin" ||
         membership?.role === "super_admin" ||
-        membership?.role === "manager", // backward compat: treat legacy managers as admin
+        membership?.role === "manager", // legacy: manager role is deprecated, treated as admin
     };
   });
 
@@ -134,6 +151,7 @@ export const getOrganizationMembers = createServerFn({ method: "GET" })
         email: organizationMemberships.email,
         role: organizationMemberships.role,
         created_at: organizationMemberships.created_at,
+        custom_permissions: organizationMemberships.custom_permissions,
         profile_name: profiles.name,
         profile_email: profiles.email,
         profile_avatar_url: profiles.avatar_url,
@@ -159,6 +177,20 @@ export const addOrganizationMember = createServerFn({ method: "POST" })
     await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
 
     const email = data.email.toLowerCase();
+
+    // Enforce max_users limit (skip check when re-inviting an existing member)
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, data.organization_id),
+    });
+    const currentCount = await db
+      .select({ count: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(eq(organizationMemberships.organization_id, data.organization_id));
+    const limit = org?.max_users ?? 100;
+    if (currentCount.length >= limit) {
+      throw new Error(`This organization has reached its member limit (${limit}).`);
+    }
+
     const existing = await db.query.organizationMemberships.findFirst({
       where: and(
         eq(organizationMemberships.organization_id, data.organization_id),
@@ -183,6 +215,13 @@ export const addOrganizationMember = createServerFn({ method: "POST" })
       user_id: existingProfile?.id ?? `pending:${email}`,
       email,
       role: data.role,
+    });
+    await writeAuditLog({
+      organization_id: data.organization_id,
+      actor_id: actor.userId,
+      action: "member.add",
+      entity_type: "membership",
+      metadata: { email, role: data.role },
     });
   });
 
@@ -280,7 +319,7 @@ export const createProject = createServerFn({ method: "POST" })
     const personal = await ensurePersonalWorkspace(actor);
     const organizationId = data.organization_id ?? personal.id;
 
-    await requireWorkspaceRole(actor, organizationId, ["super_admin", "admin", "manager"]);
+    await requireWorkspaceRole(actor, organizationId, ["super_admin", "admin"]);
 
     await db.insert(projects).values({
       name: data.name,
@@ -294,6 +333,7 @@ export const createProject = createServerFn({ method: "POST" })
 const getTimesheetsSchema = z.object({
   from: z.string(),
   to: z.string(),
+  user_id: z.string().optional(), // admin-only: view another member's entries
 });
 
 export const getTimesheets = createServerFn({ method: "GET" })
@@ -325,7 +365,10 @@ export const getTimesheets = createServerFn({ method: "GET" })
       .leftJoin(tasks, eq(timesheets.task_id, tasks.id))
       .where(
         and(
-          eq(timesheets.user_id, actor.userId),
+          // admin/super_admin can pass an explicit user_id to view any member's entries
+          data.user_id && (actor.isSuperAdmin || ids.length > 0)
+            ? eq(timesheets.user_id, data.user_id)
+            : eq(timesheets.user_id, actor.userId),
           inArray(timesheets.organization_id, ids),
           gte(timesheets.date, data.from),
           lte(timesheets.date, data.to),
@@ -368,6 +411,11 @@ export const createTimesheet = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
+
+    if (data.hours < 0.25 || data.hours > 24) {
+      throw new Error("Hours must be between 0.25 and 24");
+    }
+
     const personal = await ensurePersonalWorkspace(actor);
     let organizationId = personal.id;
     let projectId = data.project_id || null;
@@ -375,12 +423,7 @@ export const createTimesheet = createServerFn({ method: "POST" })
     if (data.task_id) {
       const task = await db.query.tasks.findFirst({ where: eq(tasks.id, data.task_id) });
       if (!task?.organization_id) throw new Error("Task not found");
-      await requireWorkspaceRole(actor, task.organization_id, [
-        "super_admin",
-        "admin",
-        "manager",
-        "member",
-      ]);
+      await requireWorkspaceRole(actor, task.organization_id, ["super_admin", "admin", "member"]);
       organizationId = task.organization_id;
       if (!projectId) {
         projectId = task.project_id;
@@ -388,12 +431,7 @@ export const createTimesheet = createServerFn({ method: "POST" })
     } else if (projectId) {
       const proj = await db.query.projects.findFirst({ where: eq(projects.id, projectId) });
       if (!proj?.organization_id) throw new Error("Project not found");
-      await requireWorkspaceRole(actor, proj.organization_id, [
-        "super_admin",
-        "admin",
-        "manager",
-        "member",
-      ]);
+      await requireWorkspaceRole(actor, proj.organization_id, ["super_admin", "admin", "member"]);
       organizationId = proj.organization_id;
     }
 
@@ -447,6 +485,127 @@ export const deleteTimesheet = createServerFn({ method: "POST" })
       .where(and(eq(timesheets.id, data), eq(timesheets.user_id, actor.userId)));
   });
 
+// ─── Update timesheet ────────────────────────────────────────────────────────
+
+const updateTimesheetSchema = z.object({
+  id: z.string().uuid(),
+  hours: z.number().min(0.25).max(24),
+  notes: z.string().nullable().optional(),
+  billable: z.boolean(),
+  date: z.string(),
+});
+
+export const updateTimesheet = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateTimesheetSchema>) =>
+    updateTimesheetSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const existing = await db.query.timesheets.findFirst({ where: eq(timesheets.id, data.id) });
+    if (!existing) throw new Error("Timesheet entry not found");
+    // Own entry — always allowed. Other user's entry — requires admin.
+    if (existing.user_id !== actor.userId) {
+      if (!actor.isSuperAdmin && existing.organization_id) {
+        await requireWorkspaceRole(actor, existing.organization_id, ["super_admin", "admin"]);
+      } else if (!actor.isSuperAdmin) {
+        throw new Error("Permission denied");
+      }
+    }
+    await db
+      .update(timesheets)
+      .set({
+        hours: data.hours.toString(),
+        notes: data.notes ?? null,
+        billable: data.billable,
+        date: data.date,
+      })
+      .where(eq(timesheets.id, data.id));
+  });
+
+// ─── Remove org member ───────────────────────────────────────────────────────
+
+export const removeOrganizationMember = createServerFn({ method: "POST" })
+  .inputValidator((data: { membership_id: string }) =>
+    z.object({ membership_id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const membership = await db.query.organizationMemberships.findFirst({
+      where: eq(organizationMemberships.id, data.membership_id),
+    });
+    if (!membership) throw new Error("Membership not found");
+    await requireWorkspaceRole(actor, membership.organization_id, ["super_admin", "admin"]);
+    if (membership.user_id === actor.userId) {
+      throw new Error("Cannot remove yourself from the organization");
+    }
+    await db
+      .delete(organizationMemberships)
+      .where(eq(organizationMemberships.id, data.membership_id));
+    await writeAuditLog({
+      organization_id: membership.organization_id,
+      actor_id: actor.userId,
+      action: "member.remove",
+      entity_type: "membership",
+      entity_id: data.membership_id,
+      metadata: { removed_user_id: membership.user_id, email: membership.email },
+    });
+  });
+
+// ─── Project CRUD ────────────────────────────────────────────────────────────
+
+const updateProjectSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().nullable().optional(),
+  color: z.string(),
+  status: z.enum(["active", "on_hold", "completed", "archived"]).default("active"),
+});
+
+export const updateProject = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateProjectSchema>) => updateProjectSchema.parse(data))
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const existing = await db.query.projects.findFirst({ where: eq(projects.id, data.id) });
+    if (!existing?.organization_id) throw new Error("Project not found");
+    await requireWorkspaceRole(actor, existing.organization_id, ["super_admin", "admin"]);
+    await db
+      .update(projects)
+      .set({
+        name: data.name,
+        description: data.description ?? null,
+        color: data.color,
+        status: data.status,
+        updated_at: new Date(),
+      })
+      .where(eq(projects.id, data.id));
+    await writeAuditLog({
+      organization_id: existing.organization_id,
+      actor_id: actor.userId,
+      action: "project.update",
+      entity_type: "project",
+      entity_id: data.id,
+      metadata: { name: data.name, status: data.status },
+    });
+  });
+
+export const deleteProject = createServerFn({ method: "POST" })
+  .inputValidator((data: string) => z.string().uuid().parse(data))
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const existing = await db.query.projects.findFirst({ where: eq(projects.id, data) });
+    if (!existing?.organization_id) throw new Error("Project not found");
+    await requireWorkspaceRole(actor, existing.organization_id, ["super_admin", "admin"]);
+    await db.delete(projects).where(eq(projects.id, data));
+    await writeAuditLog({
+      organization_id: existing.organization_id,
+      actor_id: actor.userId,
+      action: "project.delete",
+      entity_type: "project",
+      entity_id: data,
+      metadata: { name: existing.name },
+    });
+  });
+
 export const getPeople = createServerFn({ method: "GET" }).handler(async () => {
   const actor = await getCurrentActor();
   const ids = await getAccessibleOrganizationIds(actor);
@@ -464,6 +623,58 @@ export const getPeople = createServerFn({ method: "GET" }).handler(async () => {
   return await db.select().from(profiles).where(inArray(profiles.id, memberIds));
 });
 
+// ─── Custom permissions ───────────────────────────────────────────────────────
+
+export type PermissionKey =
+  | "create:task"
+  | "update:task"
+  | "delete:task"
+  | "create:project"
+  | "update:project"
+  | "delete:project"
+  | "manage:timesheets"
+  | "manage:members";
+
+const updateMemberCustomPermissionsSchema = z.object({
+  membership_id: z.string().uuid(),
+  permissions: z.record(z.string(), z.boolean()),
+});
+
+export const updateMemberCustomPermissions = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateMemberCustomPermissionsSchema>) =>
+    updateMemberCustomPermissionsSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const membership = await db.query.organizationMemberships.findFirst({
+      where: eq(organizationMemberships.id, data.membership_id),
+    });
+    if (!membership) throw new Error("Membership not found");
+    await requireWorkspaceRole(actor, membership.organization_id, ["super_admin", "admin"]);
+    await db
+      .update(organizationMemberships)
+      .set({ custom_permissions: data.permissions })
+      .where(eq(organizationMemberships.id, data.membership_id));
+  });
+
+const updateOrgMaxUsersSchema = z.object({
+  organization_id: z.string().uuid(),
+  max_users: z.number().int().min(1).max(10000),
+});
+
+export const updateOrgMaxUsers = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof updateOrgMaxUsersSchema>) =>
+    updateOrgMaxUsersSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    if (!actor.isSuperAdmin) throw new Error("Only super admins can change member limits");
+    await db
+      .update(organizations)
+      .set({ max_users: data.max_users, updated_at: new Date() })
+      .where(eq(organizations.id, data.organization_id));
+  });
+
 const updateTaskSchema = z.object({
   id: z.string(),
   patch: z.record(z.unknown()),
@@ -478,16 +689,11 @@ export const updateTask = createServerFn({ method: "POST" })
     // Members can update their own assigned task fields (status, progress, etc.)
     // but only admin+ can change the assignee
     if (data.patch.assignee_id !== undefined && data.patch.assignee_id !== existing.assignee_id) {
-      await requireWorkspaceRole(actor, existing.organization_id, [
-        "super_admin",
-        "admin",
-        "manager", // backward compat
-      ]);
+      await requireWorkspaceRole(actor, existing.organization_id, ["super_admin", "admin"]);
     } else {
       await requireWorkspaceRole(actor, existing.organization_id, [
         "super_admin",
         "admin",
-        "manager",
         "member",
       ]);
     }
@@ -533,11 +739,7 @@ export const createTask = createServerFn({ method: "POST" })
       organizationId = project.organization_id;
     }
 
-    await requireWorkspaceRole(actor, organizationId, [
-      "super_admin",
-      "admin",
-      "manager", // backward compat
-    ]);
+    await requireWorkspaceRole(actor, organizationId, ["super_admin", "admin"]);
 
     const orgTasks = await db
       .select({ id: tasks.id })
@@ -569,11 +771,7 @@ export const deleteTask = createServerFn({ method: "POST" })
     const actor = await getCurrentActor();
     const existing = await db.query.tasks.findFirst({ where: eq(tasks.id, data) });
     if (!existing?.organization_id) throw new Error("Task not found");
-    await requireWorkspaceRole(actor, existing.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-    ]);
+    await requireWorkspaceRole(actor, existing.organization_id, ["super_admin", "admin"]);
     await db.delete(tasks).where(eq(tasks.id, data));
   });
 
@@ -759,12 +957,7 @@ export const getCustomFormForProject = createServerFn({ method: "GET" })
       return null;
     }
 
-    await requireWorkspaceRole(actor, project.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-      "member",
-    ]);
+    await requireWorkspaceRole(actor, project.organization_id, ["super_admin", "admin", "member"]);
 
     // 1. Check for published Form Template mapped to this project
     const template = await db.query.formTemplates.findFirst({
@@ -829,12 +1022,7 @@ export const getFormTemplates = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
-    await requireWorkspaceRole(actor, data.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-      "member",
-    ]);
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin", "member"]);
 
     const rows = await db
       .select({
@@ -912,12 +1100,7 @@ export const getFormTemplateById = createServerFn({ method: "GET" })
 
     if (!row) return null;
 
-    await requireWorkspaceRole(actor, row.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-      "member",
-    ]);
+    await requireWorkspaceRole(actor, row.organization_id, ["super_admin", "admin", "member"]);
 
     return row as {
       id: string;
@@ -974,7 +1157,7 @@ export const saveFormTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
-    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin", "manager"]);
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
 
     if (data.id) {
       const [updated] = await db
@@ -1071,7 +1254,7 @@ export const deleteFormTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const actor = await getCurrentActor();
-    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin", "manager"]);
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
 
     await db
       .delete(formTemplates)
@@ -1192,12 +1375,7 @@ export const checkProjectFormStatus = createServerFn({ method: "GET" })
     });
     if (!project?.organization_id) return { hasPublishedForm: false };
 
-    await requireWorkspaceRole(actor, project.organization_id, [
-      "super_admin",
-      "admin",
-      "manager",
-      "member",
-    ]);
+    await requireWorkspaceRole(actor, project.organization_id, ["super_admin", "admin", "member"]);
 
     // Check for published form template
     const template = await db.query.formTemplates.findFirst({
@@ -1325,7 +1503,7 @@ export const updateUserCustomPermissions = createServerFn({ method: "POST" })
 
 const updateUserWorkspaceRoleSchema = z.object({
   membershipId: z.string().uuid(),
-  role: z.enum(["admin", "member", "manager"]),
+  role: z.enum(["admin", "member"]),
 });
 
 export const updateUserWorkspaceRole = createServerFn({ method: "POST" })
@@ -1361,4 +1539,119 @@ export const deleteOrganization = createServerFn({ method: "POST" })
     }
 
     await db.delete(organizations).where(eq(organizations.id, data.organizationId));
+  });
+
+// ─── Audit logs ──────────────────────────────────────────────────────────────
+
+async function writeAuditLog(opts: {
+  organization_id: string | null;
+  actor_id: string;
+  actor_email?: string | null;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    await db.insert(auditLogs).values({
+      organization_id: opts.organization_id ?? undefined,
+      actor_id: opts.actor_id,
+      actor_email: opts.actor_email ?? null,
+      action: opts.action,
+      entity_type: opts.entity_type ?? null,
+      entity_id: opts.entity_id ?? null,
+      metadata: opts.metadata ?? {},
+    });
+  } catch {
+    // non-fatal
+  }
+}
+
+const getAuditLogsSchema = z.object({
+  organization_id: z.string().uuid(),
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
+export const getAuditLogs = createServerFn({ method: "GET" })
+  .inputValidator((data: z.infer<typeof getAuditLogsSchema>) => getAuditLogsSchema.parse(data))
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    await requireWorkspaceRole(actor, data.organization_id, ["super_admin", "admin"]);
+    return await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.organization_id, data.organization_id))
+      .orderBy(desc(auditLogs.created_at))
+      .limit(data.limit);
+  });
+
+// ─── Timesheet approval ───────────────────────────────────────────────────────
+
+export const submitTimesheet = createServerFn({ method: "POST" })
+  .inputValidator((data: string) => z.string().uuid().parse(data))
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const entry = await db.query.timesheets.findFirst({ where: eq(timesheets.id, data) });
+    if (!entry) throw new Error("Timesheet entry not found");
+    if (entry.user_id !== actor.userId) throw new Error("You can only submit your own entries");
+    if (entry.status !== "draft") throw new Error("Only draft entries can be submitted");
+    await db.update(timesheets).set({ status: "submitted" }).where(eq(timesheets.id, data));
+    if (entry.organization_id) {
+      await writeAuditLog({
+        organization_id: entry.organization_id,
+        actor_id: actor.userId,
+        action: "timesheet.submit",
+        entity_type: "timesheet",
+        entity_id: data,
+      });
+    }
+  });
+
+const timesheetActionSchema = z.object({
+  id: z.string().uuid(),
+  notes: z.string().optional(),
+});
+
+export const approveTimesheet = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof timesheetActionSchema>) =>
+    timesheetActionSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const entry = await db.query.timesheets.findFirst({ where: eq(timesheets.id, data.id) });
+    if (!entry) throw new Error("Timesheet entry not found");
+    if (!entry.organization_id) throw new Error("Cannot approve personal entries");
+    await requireWorkspaceRole(actor, entry.organization_id, ["super_admin", "admin"]);
+    if (entry.status !== "submitted") throw new Error("Only submitted entries can be approved");
+    await db.update(timesheets).set({ status: "approved" }).where(eq(timesheets.id, data.id));
+    await writeAuditLog({
+      organization_id: entry.organization_id,
+      actor_id: actor.userId,
+      action: "timesheet.approve",
+      entity_type: "timesheet",
+      entity_id: data.id,
+      metadata: { notes: data.notes },
+    });
+  });
+
+export const rejectTimesheet = createServerFn({ method: "POST" })
+  .inputValidator((data: z.infer<typeof timesheetActionSchema>) =>
+    timesheetActionSchema.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const actor = await getCurrentActor();
+    const entry = await db.query.timesheets.findFirst({ where: eq(timesheets.id, data.id) });
+    if (!entry) throw new Error("Timesheet entry not found");
+    if (!entry.organization_id) throw new Error("Cannot reject personal entries");
+    await requireWorkspaceRole(actor, entry.organization_id, ["super_admin", "admin"]);
+    if (entry.status !== "submitted") throw new Error("Only submitted entries can be rejected");
+    await db.update(timesheets).set({ status: "rejected" }).where(eq(timesheets.id, data.id));
+    await writeAuditLog({
+      organization_id: entry.organization_id,
+      actor_id: actor.userId,
+      action: "timesheet.reject",
+      entity_type: "timesheet",
+      entity_id: data.id,
+      metadata: { notes: data.notes },
+    });
   });

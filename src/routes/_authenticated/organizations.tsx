@@ -8,6 +8,10 @@ import {
   getWorkspaceContext,
   updateOrganizationMemberRole,
   updateOrganizationSettings,
+  removeOrganizationMember,
+  updateMemberCustomPermissions,
+  getAuditLogs,
+  updateOrgMaxUsers,
   getProjects,
 } from "@/server-fns/functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -42,6 +46,8 @@ import {
   Trash2,
   Edit2,
   ArrowLeft,
+  Key,
+  ScrollText,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/organizations")({
@@ -280,6 +286,11 @@ function OrganizationCard({
   const [addingMember, setAddingMember] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [permissionsMemberId, setPermissionsMemberId] = useState<string | null>(null);
+  const [permissionsMap, setPermissionsMap] = useState<Record<string, boolean>>({});
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<(typeof MEMBER_ROLES)[number]>("member");
   const [name, setName] = useState(organization.name);
@@ -361,6 +372,59 @@ function OrganizationCard({
       setChangingRoleId(null);
     }
   }
+
+  async function removeMember(membershipId: string) {
+    setRemovingMemberId(membershipId);
+    try {
+      await removeOrganizationMember({ data: { membership_id: membershipId } });
+      toast.success("Member removed");
+      membersQ.refetch();
+      qc.invalidateQueries({ queryKey: ["workspace-context"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove member");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
+  function openPermissions(membershipId: string, currentPerms: Record<string, boolean>) {
+    setPermissionsMemberId(membershipId);
+    setPermissionsMap(currentPerms ?? {});
+  }
+
+  async function savePermissions() {
+    if (!permissionsMemberId) return;
+    setSavingPermissions(true);
+    try {
+      await updateMemberCustomPermissions({
+        data: { membership_id: permissionsMemberId, permissions: permissionsMap },
+      });
+      toast.success("Permissions saved");
+      setPermissionsMemberId(null);
+      membersQ.refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save permissions");
+    } finally {
+      setSavingPermissions(false);
+    }
+  }
+
+  const auditQ = useQuery({
+    queryKey: ["audit-logs", organization.id],
+    queryFn: () => getAuditLogs({ data: { organization_id: organization.id, limit: 50 } }),
+    enabled: showAuditLog,
+  });
+
+  const PERMISSION_KEYS = [
+    { key: "create:task", label: "Create tasks" },
+    { key: "update:task", label: "Edit tasks" },
+    { key: "delete:task", label: "Delete tasks" },
+    { key: "create:project", label: "Create projects" },
+    { key: "update:project", label: "Edit projects" },
+    { key: "delete:project", label: "Delete projects" },
+    { key: "manage:timesheets", label: "Manage team timesheets" },
+    { key: "manage:members", label: "Manage members" },
+  ];
 
   return (
     <div className="rounded-lg border border-border bg-surface">
@@ -466,15 +530,22 @@ function OrganizationCard({
                 <th className="px-3 py-2 text-left font-medium">Organization</th>
                 <th className="px-3 py-2 text-left font-medium">Role</th>
                 <th className="px-3 py-2 text-left font-medium">Status</th>
+                <th className="w-10 px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {(membersQ.data ?? []).map((member) => {
                 const pending = member.user_id.startsWith("pending:");
                 const changingRole = changingRoleId === member.id;
+                const isRemoving = removingMemberId === member.id;
                 const isSelf =
                   profile?.email &&
                   (member.email === profile.email || member.profile_email === profile.email);
+                const inviteAgeMs =
+                  pending && member.created_at
+                    ? Date.now() - new Date(member.created_at).getTime()
+                    : 0;
+                const isExpiredInvite = pending && inviteAgeMs > 30 * 24 * 60 * 60 * 1000;
                 return (
                   <tr key={member.id} className="border-t border-border">
                     <td className="px-3 py-2">
@@ -519,9 +590,45 @@ function OrganizationCard({
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {pending ? "pending login" : "active"}
-                      </span>
+                      {isExpiredInvite ? (
+                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive">
+                          invite expired
+                        </span>
+                      ) : (
+                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {pending ? "pending login" : "active"}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {!isSelf && (
+                        <span className="flex items-center gap-1">
+                          <button
+                            onClick={() =>
+                              openPermissions(
+                                member.id,
+                                (member.custom_permissions as Record<string, boolean>) ?? {},
+                              )
+                            }
+                            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                            title="Custom permissions"
+                          >
+                            <Key className="h-3 w-3" />
+                          </button>
+                          <button
+                            disabled={isRemoving}
+                            onClick={() => removeMember(member.id)}
+                            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                            title="Remove member"
+                          >
+                            {isRemoving ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -554,6 +661,125 @@ function OrganizationCard({
           />
         </div>
       </div>
+
+      {/* Audit log */}
+      <div className="border-t border-border p-4">
+        <button
+          type="button"
+          onClick={() => setShowAuditLog((v) => !v)}
+          className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary"
+        >
+          <ScrollText className="h-4 w-4" />
+          Audit Log
+          <span className="ml-1 text-[10px] text-muted-foreground">{showAuditLog ? "▲" : "▼"}</span>
+        </button>
+        {showAuditLog && (
+          <div className="mt-3 overflow-hidden rounded-md border border-border">
+            {auditQ.isLoading ? (
+              <div className="p-4 text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+              </div>
+            ) : (auditQ.data ?? []).length === 0 ? (
+              <div className="p-4 text-xs text-muted-foreground">No activity recorded yet.</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-surface-2 text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Action</th>
+                    <th className="px-3 py-2 text-left font-medium">Actor</th>
+                    <th className="px-3 py-2 text-left font-medium">Entity</th>
+                    <th className="px-3 py-2 text-left font-medium">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(auditQ.data ?? []).map((log) => (
+                    <tr key={log.id} className="border-t border-border/60">
+                      <td className="px-3 py-1.5 font-mono text-[11px]">{log.action}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground">
+                        {log.actor_email ?? log.actor_id.slice(0, 8)}
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground">
+                        {log.entity_type ?? "—"}
+                        {log.entity_id ? (
+                          <span className="ml-1 font-mono text-[10px] opacity-60">
+                            {log.entity_id.slice(0, 8)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Custom permissions dialog */}
+      <Dialog
+        open={!!permissionsMemberId}
+        onOpenChange={(v) => {
+          if (!v) setPermissionsMemberId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-sm">Custom permissions</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Override role defaults for this member. Unset = follow role. On = always allow. Off =
+            always deny.
+          </p>
+          <div className="space-y-2 py-1">
+            {PERMISSION_KEYS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-xs">{label}</span>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPermissionsMap((m) => {
+                        const next = { ...m };
+                        delete next[key];
+                        return next;
+                      })
+                    }
+                    className={`rounded px-1.5 py-0.5 ${!(key in permissionsMap) ? "bg-muted font-semibold text-foreground" : "text-muted-foreground"}`}
+                  >
+                    Default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPermissionsMap((m) => ({ ...m, [key]: true }))}
+                    className={`rounded px-1.5 py-0.5 ${permissionsMap[key] === true ? "bg-success/15 font-semibold text-success" : "text-muted-foreground"}`}
+                  >
+                    Allow
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPermissionsMap((m) => ({ ...m, [key]: false }))}
+                    className={`rounded px-1.5 py-0.5 ${permissionsMap[key] === false ? "bg-destructive/10 font-semibold text-destructive" : "text-muted-foreground"}`}
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setPermissionsMemberId(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={savePermissions} disabled={savingPermissions}>
+              {savingPermissions && <Loader2 className="h-3 w-3 animate-spin" />}
+              {savingPermissions ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

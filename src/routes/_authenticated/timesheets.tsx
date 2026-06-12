@@ -7,9 +7,14 @@ import {
   getTasks,
   createTimesheet,
   deleteTimesheet,
+  updateTimesheet,
+  submitTimesheet,
+  approveTimesheet,
+  rejectTimesheet,
   getProjects,
   getCustomFormForProject,
   checkProjectFormStatus,
+  getPeople,
 } from "@/server-fns/functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit2, Users } from "lucide-react";
 import { format, startOfWeek, addDays, subDays, addWeeks } from "date-fns";
 
 interface CustomField {
@@ -57,6 +62,7 @@ interface TimesheetDbEntry {
   hours: string;
   billable: boolean;
   notes: string | null;
+  status: string;
   custom_values: Record<string, string | number | boolean | null | undefined>;
   created_at: Date;
   tasks: {
@@ -123,11 +129,21 @@ function FormSkeletonLoader() {
 
 function TimesheetsPage() {
   const search = Route.useSearch();
-  const { user } = useAuth();
+  const { user, roles, isSuperAdmin } = useAuth();
+  const canViewTeam = isSuperAdmin || roles.includes("super_admin") || roles.includes("admin");
   const { activeOrgId, activeOrg } = useWorkspace();
   const qc = useQueryClient();
   const [weekOffset, setWeekOffset] = useState(0);
   const [open, setOpen] = useState(false);
+  const [teamView, setTeamView] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [editEntry, setEditEntry] = useState<TimesheetDbEntry | null>(null);
+  const [editHours, setEditHours] = useState(1);
+  const [editDate, setEditDate] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editBillable, setEditBillable] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
     [weekOffset],
@@ -142,8 +158,20 @@ function TimesheetsPage() {
   const toKey = format(days[6], "yyyy-MM-dd");
 
   const tsQ = useQuery({
-    queryKey: ["ts", user?.id, fromKey, toKey],
-    queryFn: () => getTimesheets({ data: { from: fromKey, to: toKey } }),
+    queryKey: ["ts", user?.id, fromKey, toKey, teamView ? selectedUserId : null],
+    queryFn: () =>
+      getTimesheets({
+        data: {
+          from: fromKey,
+          to: toKey,
+          ...(teamView && selectedUserId ? { user_id: selectedUserId } : {}),
+        },
+      }),
+  });
+  const peopleQ = useQuery({
+    queryKey: ["people"],
+    queryFn: () => getPeople(),
+    enabled: canViewTeam,
   });
   const tasksQ = useQuery({
     queryKey: ["tasks-for-ts"],
@@ -175,6 +203,8 @@ function TimesheetsPage() {
   const [customValues, setCustomValues] = useState<Record<string, string | number | boolean>>({});
   const [logging, setLogging] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
+  const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
 
   const customFormQ = useQuery({
     queryKey: ["custom-form-project", projectId],
@@ -338,6 +368,89 @@ function TimesheetsPage() {
     }
   }
 
+  async function submitEntry(id: string) {
+    setSubmittingIds((s) => new Set(s).add(id));
+    try {
+      await submitTimesheet({ data: id });
+      toast.success("Entry submitted for approval");
+      qc.invalidateQueries({ queryKey: ["ts"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit entry");
+    } finally {
+      setSubmittingIds((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    }
+  }
+
+  async function approveEntry(id: string) {
+    setApprovingIds((s) => new Set(s).add(id));
+    try {
+      await approveTimesheet({ data: { id } });
+      toast.success("Entry approved");
+      qc.invalidateQueries({ queryKey: ["ts"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve entry");
+    } finally {
+      setApprovingIds((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    }
+  }
+
+  async function rejectEntry(id: string) {
+    setApprovingIds((s) => new Set(s).add(id));
+    try {
+      await rejectTimesheet({ data: { id } });
+      toast.success("Entry rejected");
+      qc.invalidateQueries({ queryKey: ["ts"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject entry");
+    } finally {
+      setApprovingIds((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    }
+  }
+
+  function openEditEntry(e: TimesheetDbEntry) {
+    setEditEntry(e);
+    setEditHours(Number(e.hours));
+    setEditDate(e.date);
+    setEditNotes(e.notes ?? "");
+    setEditBillable(e.billable);
+  }
+
+  async function saveEditEntry() {
+    if (!editEntry) return;
+    setEditSaving(true);
+    try {
+      await updateTimesheet({
+        data: {
+          id: editEntry.id,
+          hours: editHours,
+          date: editDate,
+          notes: editNotes || null,
+          billable: editBillable,
+        },
+      });
+      toast.success("Entry updated");
+      setEditEntry(null);
+      qc.invalidateQueries({ queryKey: ["ts"] });
+      qc.invalidateQueries({ queryKey: ["dash-ts"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update entry");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   async function del(id: string) {
     setDeletingIds((current) => new Set(current).add(id));
     try {
@@ -364,6 +477,37 @@ function TimesheetsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canViewTeam && (
+            <>
+              <Button
+                size="sm"
+                variant={teamView ? "default" : "outline"}
+                onClick={() => {
+                  setTeamView((v) => !v);
+                  setSelectedUserId("");
+                }}
+                className="h-7 gap-1 text-xs"
+              >
+                <Users className="h-3 w-3" />
+                Team
+              </Button>
+              {teamView && (
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="h-7 w-40 text-xs">
+                    <SelectValue placeholder="All members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All members</SelectItem>
+                    {(peopleQ.data ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name || p.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -841,6 +985,19 @@ function TimesheetsPage() {
                               $
                             </span>
                           )}
+                          <span
+                            className={`rounded px-1 py-0.5 text-[9px] font-medium ${
+                              e.status === "approved"
+                                ? "bg-success/15 text-success"
+                                : e.status === "rejected"
+                                  ? "bg-destructive/10 text-destructive"
+                                  : e.status === "submitted"
+                                    ? "bg-primary/10 text-primary"
+                                    : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {e.status}
+                          </span>
                           <span className="truncate flex items-center flex-wrap gap-2">
                             <span>
                               {e.tasks ? (
@@ -865,17 +1022,62 @@ function TimesheetsPage() {
                               </span>
                             )}
                           </span>
-                          <button
-                            disabled={deletingIds.has(e.id)}
-                            onClick={() => del(e.id)}
-                            className="ml-auto text-muted-foreground opacity-0 transition hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100"
-                          >
-                            {deletingIds.has(e.id) ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3 w-3" />
+                          <span className="ml-auto flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                            {e.status === "draft" && !teamView && (
+                              <button
+                                disabled={submittingIds.has(e.id)}
+                                onClick={() => submitEntry(e.id)}
+                                className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+                                title="Submit for approval"
+                              >
+                                {submittingIds.has(e.id) ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  "Submit"
+                                )}
+                              </button>
                             )}
-                          </button>
+                            {e.status === "submitted" && canViewTeam && (
+                              <>
+                                <button
+                                  disabled={approvingIds.has(e.id)}
+                                  onClick={() => approveEntry(e.id)}
+                                  className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-success/10 text-success hover:bg-success/20 disabled:opacity-50"
+                                  title="Approve"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  disabled={approvingIds.has(e.id)}
+                                  onClick={() => rejectEntry(e.id)}
+                                  className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                                  title="Reject"
+                                >
+                                  ✗
+                                </button>
+                              </>
+                            )}
+                            {e.status === "draft" && (
+                              <button
+                                onClick={() => openEditEntry(e)}
+                                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                title="Edit entry"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            )}
+                            <button
+                              disabled={deletingIds.has(e.id)}
+                              onClick={() => del(e.id)}
+                              className="rounded p-0.5 text-muted-foreground hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingIds.has(e.id) ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </button>
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -905,6 +1107,70 @@ function TimesheetsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit entry dialog */}
+      <Dialog
+        open={!!editEntry}
+        onOpenChange={(v) => {
+          if (!v) setEditEntry(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Edit time entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Date</Label>
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="mt-1 h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Hours</Label>
+                <Input
+                  type="number"
+                  min={0.25}
+                  max={24}
+                  step={0.25}
+                  value={editHours}
+                  onChange={(e) => setEditHours(Number(e.target.value))}
+                  className="mt-1 h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Notes</Label>
+              <Textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                rows={2}
+                maxLength={500}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="edit-b" className="text-xs">
+                Billable
+              </Label>
+              <Switch id="edit-b" checked={editBillable} onCheckedChange={setEditBillable} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditEntry(null)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={saveEditEntry} disabled={editSaving}>
+              {editSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+              {editSaving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

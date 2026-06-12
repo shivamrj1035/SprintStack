@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getCurrentSession, logoutUser } from "@/lib/auth-server";
 
-export type AppRole = "super_admin" | "admin" | "manager" | "employee";
+export type AppRole = "super_admin" | "admin" | "member";
 
 interface AuthContextValue {
   session: { id: string | null | undefined } | null;
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string | null;
     name: string | null;
     avatarUrl: string | null;
+    isSuperAdmin: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -51,8 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (sessionData) {
-      const isSuperAdmin = sessionData.email?.toLowerCase() === "srjtheinfinity1035@gmail.com";
-      setRoles(isSuperAdmin ? ["super_admin"] : []);
+      setRoles(sessionData.isSuperAdmin ? ["super_admin"] : []);
     } else {
       setRoles([]);
     }
@@ -66,9 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     : null;
 
-  const isSuperAdmin =
-    profile?.email?.toLowerCase() === "srjtheinfinity1035@gmail.com" ||
-    roles.includes("super_admin");
+  const isSuperAdmin = sessionData?.isSuperAdmin ?? roles.includes("super_admin");
 
   const user = sessionData
     ? {

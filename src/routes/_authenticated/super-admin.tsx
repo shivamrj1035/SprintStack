@@ -216,7 +216,7 @@ function SuperAdminPage() {
     }
   };
 
-  const handleRoleChange = async (membershipId: string, role: "admin" | "member" | "manager") => {
+  const handleRoleChange = async (membershipId: string, role: "admin" | "member") => {
     setUpdatingRoleMembershipId(membershipId);
     try {
       await updateUserWorkspaceRole({
@@ -734,10 +734,7 @@ function SuperAdminPage() {
                               value={membership.role}
                               disabled={updatingRoleMembershipId === membership.id}
                               onValueChange={(val) =>
-                                handleRoleChange(
-                                  membership.id,
-                                  val as "admin" | "member" | "manager",
-                                )
+                                handleRoleChange(membership.id, val as "admin" | "member")
                               }
                             >
                               <SelectTrigger className="h-8 text-xs bg-surface-2 border-border">
@@ -755,9 +752,6 @@ function SuperAdminPage() {
                                 </SelectItem>
                                 <SelectItem value="member" className="text-xs">
                                   Member
-                                </SelectItem>
-                                <SelectItem value="manager" className="text-xs">
-                                  Manager (Legacy)
                                 </SelectItem>
                               </SelectContent>
                             </Select>

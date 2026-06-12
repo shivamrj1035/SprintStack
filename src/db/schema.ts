@@ -34,11 +34,12 @@ export const workspaceRoleEnum = pgEnum("workspace_role", [
 ]);
 
 export const profiles = pgTable("profiles", {
-  id: text("id").primaryKey(), // Clerk user ID
+  id: text("id").primaryKey(),
   email: text("email"),
   name: text("name"),
   avatar_url: text("avatar_url"),
   blocked: boolean("blocked").default(false).notNull(),
+  is_super_admin: boolean("is_super_admin").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -121,6 +122,7 @@ export const timesheets = pgTable("timesheets", {
   billable: boolean("billable").default(true).notNull(),
   notes: text("notes"),
   custom_values: jsonb("custom_values").default({}).notNull(),
+  status: text("status").default("draft").notNull(), // draft | submitted | approved | rejected
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -183,4 +185,18 @@ export const formTemplates = pgTable("form_templates", {
   created_by: text("created_by").notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organization_id: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "cascade",
+  }),
+  actor_id: text("actor_id").notNull(),
+  actor_email: text("actor_email"),
+  action: text("action").notNull(), // e.g. "member.add", "project.delete"
+  entity_type: text("entity_type"), // e.g. "project", "membership"
+  entity_id: text("entity_id"),
+  metadata: jsonb("metadata").default({}).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
 });

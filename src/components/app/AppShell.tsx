@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CommandPalette } from "./CommandPalette";
 import { useState, useEffect, type ReactNode } from "react";
+import { updateProfile } from "@/server-fns/functions";
 import { useWorkspace } from "@/hooks/use-workspace";
 import {
   Select,
@@ -75,12 +76,13 @@ const ADMIN_NAV = [
 
 const SUPER_ADMIN_NAV = [{ to: "/super-admin", label: "Super Admin", icon: Shield }] as const;
 
+const DEFAULT_ORG_MODULES = ["tasks", "projects", "timesheets"] as const;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
-  const [profileUsername, setProfileUsername] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const path = useRouterState().location.pathname;
   const { session, profile, user, signOut, roles, isSuperAdmin } = useAuth();
@@ -127,20 +129,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setProfileName(profile?.name ?? "");
-    setProfileUsername(user?.username ?? "");
-  }, [profile?.name, user?.username]);
+  }, [profile?.name]);
 
   async function saveProfile() {
-    if (!user) return;
+    if (!profileName.trim()) return;
     setSavingProfile(true);
     try {
-      const [firstName, ...rest] = profileName.trim().split(/\s+/);
-      await user.update({
-        firstName: firstName || "",
-        lastName: rest.join(" ") || "",
-        username: profileUsername.trim() || undefined,
-      });
+      await updateProfile({ data: { name: profileName.trim() } });
       setProfileOpen(false);
+    } catch (err) {
+      console.error("Failed to save profile:", err);
     } finally {
       setSavingProfile(false);
     }
@@ -285,7 +283,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
               Workspace Work
             </div>
-            {ORG_WORK_NAV.map((item) => {
+            {ORG_WORK_NAV.filter((item) => {
+              const mods = activeOrg?.modules ?? DEFAULT_ORG_MODULES;
+              if (item.to === "/tasks") return mods.includes("tasks");
+              if (item.to === "/projects") return mods.includes("projects");
+              if (item.to === "/timesheets") return mods.includes("timesheets");
+              return true;
+            }).map((item) => {
               const active = path === item.to || path.startsWith(item.to + "/");
               return (
                 <Link
@@ -413,7 +417,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
 
         {/* Administration */}
-        {!isSuperAdmin && (role === "admin" || role === "manager") && (
+        {!isSuperAdmin && role === "admin" && (
           <div className="space-y-0.5">
             <div className="px-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
               Administration
@@ -699,14 +703,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Input
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
-                className="mt-1 h-8"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Username</Label>
-              <Input
-                value={profileUsername}
-                onChange={(e) => setProfileUsername(e.target.value)}
                 className="mt-1 h-8"
               />
             </div>

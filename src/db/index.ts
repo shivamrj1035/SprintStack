@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-const sqlPlaceholder = neon("http://localhost");
+const sqlPlaceholder = neon("postgresql://user:pass@host/db");
 const dummyDb = drizzle(sqlPlaceholder, { schema });
 type DbType = typeof dummyDb;
 
@@ -25,4 +25,3 @@ export const db = new Proxy({} as DbType, {
     return Reflect.get(getDb(), prop);
   },
 });
-
