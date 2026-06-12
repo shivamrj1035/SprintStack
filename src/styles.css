@@ -263,17 +263,26 @@
     transform: scale(0.95);
   }
 
-  /* Mobile bottom navigation bar */
+  /* Mobile bottom navigation — transparent wrapper, floating pill style */
   .mobile-bottom-nav {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: color-mix(in oklab, var(--sidebar) 88%, transparent);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    /* pass-through; background lives on .mobile-bottom-nav-pill */
   }
 
-  /* Main content padding to clear bottom nav on mobile */
+  /* Glassmorphic floating pill */
+  .mobile-bottom-nav-pill {
+    background: color-mix(in oklab, var(--sidebar) 78%, transparent);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.32),
+      0 2px 8px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  /* Main content padding to clear floating bottom nav on mobile */
   .content-safe-pad {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   @media (min-width: 768px) {

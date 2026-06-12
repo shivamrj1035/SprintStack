@@ -605,13 +605,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Mobile bottom navigation — outside app-shell-container to avoid scale effect */}
+      {/* Mobile bottom navigation — floating pill, outside app-shell-container */}
       <nav
-        className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-[60] md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-[60] md:hidden pointer-events-none"
         role="navigation"
         aria-label="Main navigation"
       >
-        <div className="border-t border-border/50 flex h-14 items-stretch px-1">
+        <div
+          className={`mx-4 mobile-bottom-nav-pill flex h-[60px] items-stretch rounded-[22px] overflow-hidden px-1 transition-[opacity,transform] duration-200 ${
+            mobileSidebarOpen
+              ? "pointer-events-none opacity-0 scale-95"
+              : "pointer-events-auto opacity-100 scale-100"
+          }`}
+          style={{ marginBottom: "max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))" }}
+        >
           {mobileNavItems.map((item) => {
             const active = path === item.to || path.startsWith(item.to + "/");
             const badge = item.to === "/chat" ? totalUnread : 0;
@@ -625,7 +632,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {active && (
                   <motion.div
                     layoutId="mobile-bottom-active"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-primary"
+                    className="absolute bottom-1.5 left-1/2 -translate-x-1/2 h-0.5 w-5 rounded-full bg-primary"
                     transition={{ type: "spring", stiffness: 400, damping: 35 }}
                   />
                 )}
