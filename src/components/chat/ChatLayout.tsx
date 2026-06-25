@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useRouterState, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
+import { useStealth } from "@/hooks/use-stealth";
+import { cn } from "@/lib/utils";
 
 interface Props {
   children: ReactNode;
@@ -16,6 +18,7 @@ interface Props {
 
 export function ChatLayout({ children }: Props) {
   const { session, profile } = useAuth();
+  const { isStealth } = useStealth();
   const { activeOrg } = useWorkspace();
   const [newChatOpen, setNewChatOpen] = useState(false);
   const path = useRouterState().location.pathname;
@@ -63,11 +66,11 @@ export function ChatLayout({ children }: Props) {
             Mobile: full-width, hidden when a conversation is active
             Desktop: fixed-width sidebar, always visible */}
         <div
-          className={`
-            shrink-0 border-r border-border bg-sidebar/50 flex flex-col h-full
-            w-full md:w-72 lg:w-80 xl:w-96
-            ${hasActiveConversation ? "hidden md:flex" : "flex"}
-          `}
+          className={cn(
+            "shrink-0 border-r flex flex-col h-full w-full md:w-72 lg:w-80 xl:w-96",
+            hasActiveConversation ? "hidden md:flex" : "flex",
+            isStealth ? "bg-[#151515] border-[#2d2d2d]" : "border-border bg-sidebar/50",
+          )}
         >
           <ConversationList
             conversations={conversations}

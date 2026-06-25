@@ -84,7 +84,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.07] dark:opacity-[0.12]" />
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-destructive/6 blur-[100px]" />
 
-      <div className="relative z-10 max-w-sm text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="relative z-10 max-w-md text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 shadow-xl">
           <svg
             viewBox="0 0 24 24"
@@ -109,6 +109,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
           An unexpected error occurred. Try refreshing or head back home.
         </p>
+
+        {error && (
+          <div className="mt-4 p-3.5 rounded-xl border border-destructive/20 bg-destructive/5 text-left font-mono text-xs text-destructive-foreground overflow-auto max-h-60 max-w-full">
+            <div className="font-bold text-destructive">{error.message || String(error)}</div>
+            {error.stack && (
+              <pre className="mt-2 whitespace-pre-wrap text-[10px] opacity-75 leading-relaxed overflow-x-auto">
+                {error.stack}
+              </pre>
+            )}
+          </div>
+        )}
 
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
           <button

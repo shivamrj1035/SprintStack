@@ -5,8 +5,19 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SquarePen, Search, Users, MessageSquareDot } from "lucide-react";
+import {
+  SquarePen,
+  Search,
+  Users,
+  MessageSquareDot,
+  ChevronDown,
+  Folder,
+  FilePlus,
+  FileCode,
+  FileJson,
+} from "lucide-react";
 import type { Conversation } from "@/hooks/use-conversations";
+import { useStealth } from "@/hooks/use-stealth";
 
 interface Props {
   conversations: Conversation[];
@@ -35,6 +46,16 @@ function formatTime(date: Date): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function toStealthFileName(name: string, type: "direct" | "group"): string {
+  const cleanName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const extension = type === "group" ? "json" : "tsx";
+  return `${cleanName || "chat"}.${extension}`;
+}
+
 export function ConversationList({
   conversations,
   loading,
@@ -45,6 +66,7 @@ export function ConversationList({
   const params = useParams({ strict: false }) as { conversationId?: string };
   const activeId = params.conversationId;
   const [search, setSearch] = useState("");
+  const { isStealth } = useStealth();
 
   const getDisplayName = (conv: Conversation) => {
     if (conv.type === "group") return conv.name ?? "Group chat";
@@ -66,6 +88,103 @@ export function ConversationList({
     (sum, c) => sum + (c.unreadCounts[currentUserId] ?? 0),
     0,
   );
+
+  if (isStealth) {
+    return (
+      <div className="flex flex-col h-full bg-[#151515] text-[#d4d4d4] select-none text-[11px] font-mono border-r border-[#2d2d2d] w-full text-left">
+        {/* Chats Folder Explorer Header */}
+        <div className="px-3 pt-3 pb-2 shrink-0 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-zinc-500 font-semibold select-none">
+              <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+              <Folder className="h-3.5 w-3.5 text-sky-400 fill-sky-400/20 shrink-0" />
+              <span>src/chats</span>
+              {totalUnread > 0 && (
+                <span className="ml-2 h-4 min-w-[1rem] px-1 rounded bg-[#007acc] text-white text-[9px] font-bold flex items-center justify-center">
+                  {totalUnread}
+                </span>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onNewChat}
+              title="git checkout -b new-chat"
+              className="h-6 w-6 text-zinc-500 hover:text-zinc-300 hover:bg-[#2d2d2d] cursor-pointer"
+              aria-label="New conversation"
+            >
+              <FilePlus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* Search box styled as VS Code filter */}
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-500 pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter chats..."
+              className="pl-7 pr-2 h-6 text-[10px] bg-[#1e1e1e] text-zinc-300 border-[#2d2d2d] focus-visible:ring-1 focus-visible:ring-[#007acc]/50 rounded-[1px] font-mono placeholder:text-zinc-600 w-full"
+            />
+          </div>
+        </div>
+
+        {/* List of Chat Files */}
+        <div className="flex-1 overflow-y-auto px-1 py-1">
+          {loading ? (
+            <div className="px-2 py-1 space-y-1">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-5 bg-[#202020] animate-pulse rounded-[1px] w-full" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-zinc-600 font-mono text-[10px]">
+              {search ? "No matches found" : "No active chats"}
+            </div>
+          ) : (
+            <ul className="space-y-0.5">
+              {filtered.map((conv) => {
+                const name = getDisplayName(conv);
+                const isActive = conv.id === activeId;
+                const unread = conv.unreadCounts[currentUserId] ?? 0;
+                const fileName = toStealthFileName(name, conv.type);
+
+                return (
+                  <li key={conv.id}>
+                    <Link
+                      to="/chat/$conversationId"
+                      params={{ conversationId: conv.id }}
+                      className={cn(
+                        "flex items-center justify-between px-2 py-0.5 rounded-[1px] cursor-pointer transition-colors duration-100 font-mono text-[11px]",
+                        isActive
+                          ? "bg-[#2d2d2d] text-white font-medium border-l border-sky-400"
+                          : "text-zinc-400 hover:bg-[#202020] hover:text-zinc-200",
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {conv.type === "group" ? (
+                          <FileJson className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                        ) : (
+                          <FileCode className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                        )}
+                        <span className="truncate">{fileName}</span>
+                      </div>
+
+                      {unread > 0 && (
+                        <span className="h-3.5 min-w-[0.875rem] px-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-semibold flex items-center justify-center shrink-0 border border-emerald-500/30">
+                          {unread}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-sidebar/50">

@@ -23,9 +23,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, Loader2, MoreVertical, Send, Trash2, Users, Hash } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  MoreVertical,
+  Send,
+  Trash2,
+  Users,
+  Hash,
+  FileCode,
+  FileJson,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useStealth } from "@/hooks/use-stealth";
 import { toast } from "sonner";
 import { sendChatNotification, deleteConversation } from "@/server-fns/chat";
 import type { Conversation } from "@/hooks/use-conversations";
@@ -65,6 +76,16 @@ function isSameDay(a: Date, b: Date) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
+}
+
+function toStealthFileName(name: string, type: "direct" | "group"): string {
+  const cleanName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const extension = type === "group" ? "json" : "tsx";
+  return `${cleanName || "chat"}.${extension}`;
 }
 
 interface MessageGroup {
@@ -120,6 +141,7 @@ export function MessageThread({
   participantProfiles,
 }: Props) {
   const navigate = useNavigate();
+  const { isStealth } = useStealth();
   const { messages, loading } = useMessages(conversation.id, currentUserId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -230,20 +252,36 @@ export function MessageThread({
   const groups = buildGroups(messages);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background/80 backdrop-blur-sm shrink-0">
+      <div
+        className={cn(
+          "flex items-center gap-3 px-4 py-3 border-b shrink-0",
+          isStealth
+            ? "bg-[#1e1e1e] border-[#2d2d2d] text-zinc-300 font-mono text-[11px]"
+            : "bg-background/80 backdrop-blur-sm",
+        )}
+      >
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden h-8 w-8 cursor-pointer"
+          className={cn(
+            "md:hidden h-8 w-8 cursor-pointer",
+            isStealth && "hover:bg-[#2d2d2d] hover:text-white",
+          )}
           onClick={() => navigate({ to: "/chat" })}
           aria-label="Back"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        {conversation.type === "group" ? (
+        {isStealth ? (
+          conversation.type === "group" ? (
+            <FileJson className="h-4 w-4 text-yellow-500 shrink-0" />
+          ) : (
+            <FileCode className="h-4 w-4 text-orange-400 shrink-0" />
+          )
+        ) : conversation.type === "group" ? (
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 border border-violet-200/30 dark:border-violet-800/30 flex items-center justify-center shrink-0">
             <Users className="h-4 w-4 text-violet-500" />
           </div>
@@ -257,11 +295,26 @@ export function MessageThread({
         )}
 
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="font-semibold text-[13px] truncate leading-none">{displayName}</span>
-          <span className="text-[11px] text-muted-foreground mt-0.5">
-            {conversation.type === "group"
-              ? `${conversation.participants.length} members`
-              : "Direct message"}
+          {isStealth ? (
+            <span className="font-mono text-[11px] truncate leading-none text-zinc-200 font-semibold">
+              src/chats/{toStealthFileName(displayName, conversation.type)}
+            </span>
+          ) : (
+            <span className="font-semibold text-[13px] truncate leading-none">{displayName}</span>
+          )}
+          <span
+            className={cn(
+              "text-[10px] mt-0.5",
+              isStealth ? "font-mono text-zinc-500" : "text-muted-foreground",
+            )}
+          >
+            {isStealth
+              ? conversation.type === "group"
+                ? `// ${conversation.participants.length} connected hosts`
+                : `// direct_socket_established`
+              : conversation.type === "group"
+                ? `${conversation.participants.length} members`
+                : "Direct message"}
           </span>
         </div>
 
@@ -270,7 +323,10 @@ export function MessageThread({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+              className={cn(
+                "h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer",
+                isStealth && "hover:bg-[#2d2d2d] hover:text-white",
+              )}
               aria-label="Conversation options"
             >
               <MoreVertical className="h-4 w-4" />
@@ -372,35 +428,84 @@ export function MessageThread({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="shrink-0 px-4 pb-4 pt-2">
-        <div className="flex items-end gap-2 rounded-xl border bg-background shadow-sm focus-within:ring-1 focus-within:ring-primary/30 focus-within:border-primary/40 transition-all duration-200 px-3 py-2">
+      <form
+        onSubmit={handleSubmit}
+        className={cn(
+          "shrink-0 px-4 pb-4 pt-2",
+          isStealth && "bg-[#1e1e1e] border-t border-[#2d2d2d] pt-3",
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-end gap-2 transition-all duration-200 px-3 py-2",
+            isStealth
+              ? "bg-[#181818] border border-[#2d2d2d] rounded-[3px] focus-within:border-[#007acc] focus-within:ring-1 focus-within:ring-[#007acc]/30"
+              : "rounded-xl border bg-background shadow-sm focus-within:ring-1 focus-within:ring-primary/30 focus-within:border-primary/40",
+          )}
+        >
+          {isStealth && (
+            <span className="text-[11px] text-pink-500 font-mono select-none pb-2">const</span>
+          )}
+          {isStealth && (
+            <span className="text-[11px] text-cyan-400 font-mono select-none pb-2">msg</span>
+          )}
+          {isStealth && (
+            <span className="text-[11px] text-zinc-500 font-mono select-none pb-2">=</span>
+          )}
           <Textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Message ${conversation.type === "group" ? displayName : displayName}…`}
-            className="flex-1 min-h-[36px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60"
+            placeholder={
+              isStealth
+                ? `"Write your payload here..."`
+                : `Message ${conversation.type === "group" ? displayName : displayName}…`
+            }
+            className={cn(
+              "flex-1 min-h-[36px] max-h-[120px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60",
+              isStealth
+                ? "font-mono text-[11px] text-[#d4d4d4] placeholder:text-zinc-600 pb-1.5"
+                : "text-sm",
+            )}
             rows={1}
             autoComplete="off"
           />
+          {isStealth && (
+            <span className="text-[11px] text-zinc-500 font-mono select-none pb-2">;</span>
+          )}
           <Button
             type="submit"
             size="icon"
             disabled={!text.trim() || sending}
             className={cn(
               "h-8 w-8 shrink-0 rounded-lg transition-all duration-150 cursor-pointer",
-              text.trim()
-                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shadow-primary/20"
-                : "bg-muted text-muted-foreground",
+              isStealth
+                ? text.trim()
+                  ? "bg-[#007acc] text-white hover:bg-[#0062a3] rounded-[2px]"
+                  : "bg-[#2d2d2d] text-zinc-500 rounded-[2px]"
+                : text.trim()
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shadow-primary/20"
+                  : "bg-muted text-muted-foreground",
             )}
             aria-label="Send message"
           >
-            <Send className="h-3.5 w-3.5" />
+            {isStealth ? (
+              <Send className="h-3 w-3 text-zinc-100" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground/50 mt-1.5 px-1">
-          Enter to send · Shift+Enter for new line
+        <p
+          className={cn(
+            "text-[10px] mt-1.5 px-1",
+            isStealth ? "font-mono text-zinc-500" : "text-muted-foreground/50",
+          )}
+        >
+          {isStealth
+            ? "// Press Enter to commit changes to remote branch"
+            : "Enter to send · Shift+Enter for new line"}
         </p>
       </form>
     </div>
